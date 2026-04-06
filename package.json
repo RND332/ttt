@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt",
-    "build": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt build",
-    "zip": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt zip",
-    "typecheck": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt build && tsc -p tsconfig.json --noEmit",
+    "dev": "node --localstorage-file=.wxt/localstorage ./node_modules/wxt/bin/wxt.mjs",
+    "build": "node --localstorage-file=.wxt/localstorage ./node_modules/wxt/bin/wxt.mjs build",
+    "zip": "node --localstorage-file=.wxt/localstorage ./node_modules/wxt/bin/wxt.mjs zip",
+    "typecheck": "node --localstorage-file=.wxt/localstorage ./node_modules/wxt/bin/wxt.mjs build && tsc -p tsconfig.json --noEmit",
     "test": "bun test"
   },
   "devDependencies": {
