@@ -1,0 +1,18 @@
+{
+  "name": "ttt-browser-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt",
+    "build": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt build",
+    "zip": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt zip",
+    "typecheck": "NODE_OPTIONS=--localstorage-file=.wxt/localstorage wxt build && tsc -p tsconfig.json --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.312",
+    "bun-types": "^1.3.11",
+    "typescript": "^5.9.3",
+    "wxt": "^0.20.20"
+  }
+}

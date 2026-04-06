@@ -1,0 +1,6 @@
+*.log
+.DS_Store
+.wxt
+dist
+.output
+node_modules
