@@ -10,11 +10,11 @@ A Chrome/Chromium extension that adds a button to X posts with media. Clicking i
 - Stores settings locally in the browser using `chrome.storage.local`
 - Provides an options page for bot token, channel ID, Cobalt API URL, Cobalt auth token, auth scheme, and video quality
 - Requests access to custom Cobalt hosts only when you test or use them
-- Built with WXT, so `bun run dev` gives you extension HMR during local development
+- Built with AddFox, so `bun run dev` gives you extension HMR during local development
 - Includes a debug toggle via `localStorage.ttt-debug = 1`
 
 ## Development with HMR
-This extension uses WXT for local development.
+This extension uses AddFox for local development.
 
 ### Install
 ```bash
