@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "addfox dev",
-    "build": "addfox build",
+    "build": "addfox build --no-open",
     "zip": "addfox zip",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint .",
