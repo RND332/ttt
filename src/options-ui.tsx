@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ExtensionSettings, MessageResponse } from "./shared";
 import { DEFAULT_SETTINGS } from "./shared";
+import { sendExtensionMessage } from "./runtime-messaging";
 
 function OptionsPage() {
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
@@ -67,7 +68,7 @@ function OptionsPage() {
     setCobaltTestStatus("Testing...");
     setTestingCobalt(true);
     try {
-      const response = (await chrome.runtime.sendMessage({
+      const response = (await sendExtensionMessage({
         type: "TEST_COBALT_AUTH",
         payload: {
           cobaltUrl: settings.cobaltUrl.trim(),
