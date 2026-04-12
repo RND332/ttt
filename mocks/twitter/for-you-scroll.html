@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>X / For you</title>
+  </head>
+  <body>
+    <div aria-label="Timeline: For you">
+      <header>
+        <nav aria-label="Primary">
+          <a href="/home" aria-current="page">For you</a>
+          <a href="/home/following">Following</a>
+        </nav>
+      </header>
+
+      <main>
+        <article data-testid="tweet" aria-labelledby="tweet-1">
+          <div>
+            <a href="/gkisokay/status/2043233348085227734">@gkisokay</a>
+            <span id="tweet-1">This is the sample tweet with the image everyone keeps opening.</span>
+          </div>
+          <div data-testid="tweetPhoto">
+            <img
+              alt="A sample photo"
+              src="https://pbs.twimg.com/media/GkIsOkaySample1.jpg?format=jpg&name=large"
+            />
+          </div>
+        </article>
+
+        <article data-testid="tweet">
+          <div>
+            <a href="/someone/status/2043233348085227000">@someone</a>
+            <span>Text-only post used to verify the button is not injected everywhere.</span>
+          </div>
+        </article>
+
+        <article data-testid="tweet">
+          <div>
+            <a href="/another/status/2043233348085227333">@another</a>
+            <span>Quoted tweet below should not pollute the parent classification.</span>
+          </div>
+          <div data-testid="tweetPhoto">
+            <img alt="Primary photo" src="https://pbs.twimg.com/media/ForYouPrimary.jpg?format=jpg&name=large" />
+          </div>
+          <blockquote>
+            <article>
+              <a href="/quoted/status/2043233348085227111">@quoted</a>
+              <div data-testid="tweetPhoto">
+                <img alt="Quoted image" src="https://pbs.twimg.com/media/QuotedShouldIgnore.jpg?format=jpg&name=large" />
+              </div>
+            </article>
+          </blockquote>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>

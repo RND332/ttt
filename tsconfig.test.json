@@ -11,7 +11,7 @@
     "strict": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "types": ["chrome", "bun-types"],
+    "types": ["vitest/globals", "node"],
     "paths": {
       "@": ["."],
       "@/*": ["./*"],
@@ -23,21 +23,5 @@
       "~~/*": ["./*"]
     }
   },
-  "include": [
-    "addfox.config.ts",
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ],
-  "exclude": [
-    "dist",
-    ".output",
-    ".wxt",
-    "entrypoints",
-    "src/**/*.test.ts",
-    "src/**/*.spec.ts",
-    "src/test/**/*.ts",
-    "vitest.config.ts"
-  ]
+  "include": ["vitest.config.ts", "src/**/*.test.ts", "src/**/*.spec.ts", "src/test/**/*.ts"]
 }

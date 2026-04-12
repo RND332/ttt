@@ -33,8 +33,18 @@ bun run typecheck
 
 ### Tests
 ```bash
-bun test
+bun run test
 ```
+
+Vitest conventions in this repo:
+- Tests live next to source files as `*.test.ts`
+- Default environment is `node`
+- Use `// @vitest-environment jsdom` only for tests that need a browser DOM
+- Mocks are cleared/restored automatically after each test
+- Prefer explicit `vitest` imports over globals
+- Keep tests deterministic: no shared mutable state between tests
+- Use table-driven tests (`test.each`) when covering variants
+- Put fixture HTML under `mocks/` and reuse it through `src/test/fixtures.ts`
 
 ### Production build
 ```bash

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>X / Following</title>
+  </head>
+  <body>
+    <div aria-label="Timeline: Following">
+      <header>
+        <nav aria-label="Primary">
+          <a href="/home">For you</a>
+          <a href="/home/following" aria-current="page">Following</a>
+        </nav>
+      </header>
+
+      <main>
+        <article data-testid="tweet">
+          <div>
+            <a href="/gkisokay/status/2043233348085227734">@gkisokay</a>
+            <span>Same sample post, but now inside the Following feed variant.</span>
+          </div>
+          <div data-testid="tweetPhoto">
+            <img
+              alt="A sample photo"
+              src="https://pbs.twimg.com/media/GkIsOkaySample1.jpg?format=jpg&name=large"
+            />
+          </div>
+        </article>
+
+        <article data-testid="tweet">
+          <div>
+            <a href="/friend/status/2043233348085227444">@friend</a>
+            <span>Single-image post with a different media URL to check selection order.</span>
+          </div>
+          <div data-testid="tweetPhoto">
+            <img alt="Second photo" src="https://pbs.twimg.com/media/FollowingSecond.jpg?format=jpg&name=large" />
+          </div>
+        </article>
+
+        <article data-testid="tweet">
+          <div>
+            <a href="/music/status/2043233348085227555">@music</a>
+            <span>Video-style card, should behave like a non-photo post in this mock.</span>
+          </div>
+          <div data-testid="videoComponent">
+            <video src="https://video.twimg.com/ext_tw_video/sample.mp4"></video>
+          </div>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>
