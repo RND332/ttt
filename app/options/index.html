@@ -89,6 +89,7 @@
         color: white; font-weight: 700; cursor: pointer; box-shadow: 0 8px 20px rgba(29, 155, 240, 0.25);
       }
       button:hover { filter: brightness(1.02); }
+      button:disabled { opacity: 0.7; cursor: progress; }
       #status { color: var(--muted); }
       .hint { margin-top: 10px; font-size: 13px; color: var(--muted); }
       code { background: #eef2ff; border: 1px solid rgba(99, 102, 241, 0.14); padding: 1px 6px; border-radius: 999px; }
@@ -104,76 +105,6 @@
     <script type="module" src="./index.ts"></script>
   </head>
   <body>
-    <div class="shell">
-      <div class="card">
-        <div class="topbar">
-          <div>
-            <div class="eyebrow">Extension settings</div>
-            <h1>TTT</h1>
-            <p>Connect Telegram, grant Cobalt access, and tune posting behavior.</p>
-          </div>
-          <div class="row" style="margin-top:0">
-            <button id="saveTop" type="button">Save</button>
-          </div>
-        </div>
-        <div class="divider"></div>
-
-        <div class="layout">
-          <aside class="sidebar">
-            <h2>Sections</h2>
-            <nav>
-              <a href="#telegram">Telegram</a>
-              <a href="#cobalt">Cobalt</a>
-              <a href="#behavior">Behavior</a>
-            </nav>
-          </aside>
-
-          <main class="main">
-            <div class="grid">
-              <div class="section" id="telegram">
-                <h2>Telegram</h2>
-                <label for="botToken">Bot Token</label>
-                <input id="botToken" type="password" placeholder="123456:ABC-DEF..." />
-                <label for="channelId">Channel ID or @username</label>
-                <input id="channelId" type="text" placeholder="@mychannel or -1001234567890" />
-                <div class="hint">This is where media will be posted.</div>
-              </div>
-              <div class="section" id="cobalt">
-                <h2>Cobalt</h2>
-                <label for="cobaltUrl">Cobalt API URL</label>
-                <input id="cobaltUrl" type="text" placeholder="https://api.cobalt.tools" />
-                <div class="hint">Use the hosted API or your own Cobalt instance for reliable video downloads.</div>
-                <label for="cobaltAuthToken">Cobalt Auth Token</label>
-                <input id="cobaltAuthToken" type="password" placeholder="Optional token if your Cobalt is protected" />
-                <label for="cobaltAuthScheme">Cobalt Auth Scheme</label>
-                <input id="cobaltAuthScheme" type="text" placeholder="Api-Key or Bearer" />
-                <div class="hint">Use <code>Api-Key</code> for most Cobalt API keys. Use <code>Bearer</code> only if your instance explicitly requires it.</div>
-                <div class="hint">If auth fails on a self-hosted instance, check that server's keys file (usually <code>keys.json</code>) for a UUIDv4 API key, then use <code>Api-Key</code> + that key. This extension cannot mint Cobalt keys for you.</div>
-                <div class="hint">The first auth test or video send will ask the browser to allow access to the configured Cobalt host.</div>
-                <label for="cobaltQuality">Video quality</label>
-                <input id="cobaltQuality" type="text" placeholder="1080" />
-                <div class="hint">Examples: <code>1080</code>, <code>720</code>, <code>max</code></div>
-                <div class="row">
-                  <button id="testCobalt" type="button">Test Cobalt auth</button>
-                  <span class="hint" id="cobaltTestStatus"></span>
-                </div>
-              </div>
-              <div class="section" id="behavior">
-                <h2>Behavior</h2>
-                <label>
-                  <input id="autoPrefix" type="checkbox" />
-                  Prefix Telegram captions with “New post”
-                </label>
-                <div class="hint">Set <code>localStorage.ttt-debug = 1</code> in the page console to log classification details.</div>
-              </div>
-            </div>
-            <div class="row">
-              <button id="save">Save</button>
-              <span id="status"></span>
-            </div>
-          </main>
-        </div>
-      </div>
-    </div>
+    <div id="root"></div>
   </body>
 </html>
