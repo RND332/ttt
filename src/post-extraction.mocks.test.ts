@@ -6,7 +6,7 @@ import { loadMockHtml } from "./test/fixtures";
 type FixtureCase = {
   name: string;
   path: string;
-  expectedKinds: Array<"photo" | "video" | null>;
+  expectedKinds: Array<"photo" | "photo-album" | "video" | null>;
 };
 
 const cases: FixtureCase[] = [
@@ -30,12 +30,19 @@ const cases: FixtureCase[] = [
     path: "mocks/twitter/tweet-photo-open.html",
     expectedKinds: ["photo"],
   },
+  {
+    name: "quote tweet thread",
+    path: "mocks/twitter/quote-tweet-thread.html",
+    expectedKinds: ["photo-album"],
+  },
 ] as const;
 
 test.each(cases)("extractPostData classifies %s", async ({ path, expectedKinds }) => {
   const html = await loadMockHtml(path);
   const { document } = parseHTML(html);
-  const articles = Array.from(document.querySelectorAll("article[data-testid='tweet']"));
+  const articles = Array.from(document.querySelectorAll("main article[data-testid='tweet']")).filter(
+    (article) => !article.parentElement?.closest("article[data-testid='tweet']")
+  );
 
   expect(articles.length).toBe(expectedKinds.length);
 

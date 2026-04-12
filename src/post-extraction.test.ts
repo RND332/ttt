@@ -9,14 +9,14 @@ test("extractPostData ignores media inside quoted tweets", () => {
       <div data-testid="tweetPhoto">
         <img src="https://pbs.twimg.com/media/main.jpg" />
       </div>
-      <div>
-        <article>
+      <blockquote>
+        <div>
           <a href="/quoted/status/222">quoted</a>
           <div data-testid="tweetPhoto">
             <img src="https://pbs.twimg.com/media/quoted.jpg" />
           </div>
-        </article>
-      </div>
+        </div>
+      </blockquote>
     </article>
   `);
 

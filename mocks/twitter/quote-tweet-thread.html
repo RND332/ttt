@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>X / Quote tweet thread</title>
+  </head>
+  <body>
+    <main>
+      <article data-testid="tweet" aria-label="Tweet by gkisokay">
+        <div>
+          <a href="/gkisokay/status/2043233348085227734">gkisokay</a>
+          <span>This is the quote-tweet parent. It has two images and quotes another post.</span>
+        </div>
+        <div data-testid="tweetPhoto">
+          <img alt="Main image one" src="https://pbs.twimg.com/media/MainQuoteThread1.jpg?format=jpg&name=large" />
+        </div>
+        <div data-testid="tweetPhoto">
+          <img alt="Main image two" src="https://pbs.twimg.com/media/MainQuoteThread2.jpg?format=jpg&name=large" />
+        </div>
+        <blockquote>
+          <article data-testid="tweet" aria-label="Tweet by quoted-user">
+            <div>
+              <a href="/quoted-user/status/999999999999999999">quoted-user</a>
+              <span>Quoted post with its own media.</span>
+            </div>
+            <div data-testid="tweetPhoto">
+              <img alt="Quoted image one" src="https://pbs.twimg.com/media/QuotedThread1.jpg?format=jpg&name=large" />
+            </div>
+            <div data-testid="tweetPhoto">
+              <img alt="Quoted image two" src="https://pbs.twimg.com/media/QuotedThread2.jpg?format=jpg&name=large" />
+            </div>
+          </article>
+        </blockquote>
+      </article>
+    </main>
+  </body>
+</html>

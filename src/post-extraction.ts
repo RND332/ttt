@@ -45,28 +45,37 @@ export function extractPostData(article: Element): TelegramPhotoPayload | Telegr
 }
 
 function getPhotoUrls(article: Element) {
-  const photos = Array.from(article.querySelectorAll(PHOTO_SELECTORS.join(",")));
   const urls = new Set<string>();
 
-  for (const photo of photos) {
-    if (getOwningArticle(photo as Element) !== article) continue;
-    if (isInsideVideoContainer(photo as Element)) continue;
-    const photoUrl = getElementUrl(photo as Element);
+  for (const photo of findDirectMediaNodes(article, PHOTO_SELECTORS)) {
+    const photoUrl = getElementUrl(photo);
     if (isHttpUrl(photoUrl)) urls.add(photoUrl);
   }
 
   return Array.from(urls);
 }
 
-function hasVideoMedia(article: Element) {
-  const videoContainer = article.querySelector(
-    "div[data-testid='videoComponent'], div[aria-label*='video' i], div[aria-label*='Video' i], video"
-  );
-  return Boolean(videoContainer && getOwningArticle(videoContainer) === article);
+function findDirectMediaNodes(root: Element, selectors: string[]) {
+  const nodes = Array.from(root.querySelectorAll(selectors.join(",")));
+  return nodes.filter((node) => !isInsideNestedQuote(node, root));
 }
 
-function isInsideVideoContainer(node: Element) {
-  return Boolean(node.closest("div[data-testid='videoComponent'], div[aria-label*='video' i], div[aria-label*='Video' i], video"));
+function hasVideoMedia(article: Element) {
+  return findDirectMediaNodes(article, [
+    "div[data-testid='videoComponent']",
+    "div[aria-label*='video' i]",
+    "div[aria-label*='Video' i]",
+    "video"
+  ]).length > 0;
+}
+
+function isInsideNestedQuote(node: Element, rootArticle: Element) {
+  let current = node.parentElement;
+  while (current && current !== rootArticle) {
+    if (current.tagName === "ARTICLE" || current.tagName === "BLOCKQUOTE") return true;
+    current = current.parentElement;
+  }
+  return false;
 }
 
 function getOwningArticle(node: Element) {
@@ -97,14 +106,12 @@ function isHttpUrl(value: string) {
 
 function getPostUrl(article: Element) {
   const anchors = Array.from(article.querySelectorAll("a[href]"));
-  const anchor = anchors
-    .map((a) => a.getAttribute("href") || "")
-    .find((href, index) => {
-      if (!/\/status\/\d+/.test(href)) return false;
-      const node = anchors[index];
-      return getOwningArticle(node) === article;
-    });
+  const anchor = anchors.find((node) => {
+    const href = node.getAttribute("href") || "";
+    return /\/status\/\d+/.test(href) && !isInsideNestedQuote(node, article);
+  });
 
   if (!anchor) return null;
-  return anchor.startsWith("http") ? anchor : `https://x.com${anchor}`;
+  const href = anchor.getAttribute("href") || "";
+  return href.startsWith("http") ? href : `https://x.com${href}`;
 }
