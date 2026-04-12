@@ -2,6 +2,20 @@ import { defineConfig } from "addfox";
 
 export default defineConfig({
   outDir: "dist",
+  rsbuild: {
+    tools: {
+      swc: {
+        jsc: {
+          transform: {
+            react: {
+              runtime: "automatic",
+              importSource: "react"
+            }
+          }
+        }
+      }
+    }
+  },
   manifest: {
     name: "TTT",
     version: "1.0.0",
