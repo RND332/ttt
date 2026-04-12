@@ -1,13 +1,27 @@
 import type { BackgroundMessage, MessageResponse, TelegramSendPayload } from "../../src/shared";
 import { extractPostData } from "../../src/post-extraction";
 
-ensureStyles();
-startObserver();
-scanPosts();
-
 const BUTTON_CLASS = "ttt-send-button";
 const PROCESSED_ATTR = "data-ttt-processed";
 const POST_SELECTOR = "article";
+
+bootstrap();
+
+function bootstrap() {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
+    return;
+  }
+
+  queueMicrotask(initialize);
+}
+
+function initialize() {
+  ensureStyles();
+  startObserver();
+  scanPosts();
+}
+
 function ensureStyles() {
   if (document.getElementById("ttt-style")) return;
   const style = document.createElement("style");

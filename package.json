@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "addfox dev",
+    "dev": "addfox dev -b edge --cache",
     "build": "addfox build --no-open",
     "zip": "addfox zip",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -11,18 +11,18 @@
     "format": "oxfmt .",
     "test": "bun test"
   },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
   "devDependencies": {
     "@types/chrome": "^0.0.312",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "addfox": "^0.1.1-beta.15",
     "bun-types": "^1.3.11",
     "oxfmt": "^0.44.0",
     "oxlint": "^1.59.0",
     "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5"
   }
 }
