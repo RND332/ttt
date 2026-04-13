@@ -1,8 +1,32 @@
+import {
+  BROWSER_VIDEO_FETCH_FAILED_ERROR,
+  BROWSER_VIDEO_INVALID_FILE_ERROR,
+  downloadBrowserVideo
+} from "../../src/browser-video-download";
+import { downloadHlsVideo } from "../../src/hls-video-download";
+import { ensurePageBlobBridgeInstalled } from "../../src/page-blob-video-bridge-install";
+import {
+  RECOVERED_VIDEO_SOURCE_PRIORITY,
+  classifyRecoveredVideoUrl
+} from "../../src/page-stream-video-discovery-shared";
+import { ensurePageStreamVideoDiscoveryInstalled } from "../../src/page-stream-video-discovery-install";
+import {
+  createRecoveredVideoCandidateStore,
+  getBestRecoveredVideoCandidate,
+  mergeRecoveredVideoCandidates
+} from "../../src/recovered-video-candidates";
+import { ensurePageTwitterVideoResolverInstalled } from "../../src/page-twitter-video-resolver-install";
+import {
+  isTwitterBrokenContainerTweetId,
+  parseTwitterPostRef,
+  resolveTwitterVideoCandidates,
+  TWITTER_BROKEN_CONTAINER_POLICY_ERROR
+} from "../../src/twitter-video-metadata-resolver";
 import type {
   BackgroundMessage,
-  CobaltResolution,
   ExtensionSettings,
   MessageResponse,
+  RecoveredVideoCandidate,
   TelegramPhotoAlbumPayload,
   TelegramPhotoPayload,
   TelegramVideoPayload
@@ -14,20 +38,50 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({ ...DEFAULT_SETTINGS, ...existing });
 });
 
+const recoveredVideoCandidateStore = createRecoveredVideoCandidateStore();
+
 chrome.action.onClicked.addListener(() => {
   chrome.runtime.openOptionsPage();
 });
 
-chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
   if (message?.type === "SEND_TO_TELEGRAM") {
-    sendToTelegram(message.payload)
+    sendToTelegram(sender, message.payload)
       .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
       .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
     return true;
   }
 
-  if (message?.type === "TEST_COBALT_AUTH") {
-    testCobaltAuth(message.payload)
+  if (message?.type === "ENSURE_PAGE_BLOB_BRIDGE") {
+    installPageBlobBridgeForSender(sender)
+      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    return true;
+  }
+
+  if (message?.type === "ENSURE_PAGE_STREAM_VIDEO_DISCOVERY") {
+    installPageStreamDiscoveryForSender(sender)
+      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    return true;
+  }
+
+  if (message?.type === "ENSURE_PAGE_TWITTER_VIDEO_RESOLVER") {
+    installPageTwitterVideoResolverForSender(sender)
+      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    return true;
+  }
+
+  if (message?.type === "REPORT_RECOVERED_VIDEO_CANDIDATES") {
+    storeRecoveredVideoCandidates(sender, message.postUrl, message.candidates)
+      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
+      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    return true;
+  }
+
+  if (message?.type === "GET_RECOVERED_VIDEO_CANDIDATES") {
+    getRecoveredVideoCandidates(sender, message.postUrl)
       .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
       .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
     return true;
@@ -36,7 +90,82 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, _sender, sendR
   return false;
 });
 
-async function sendToTelegram(payload: TelegramPhotoPayload | TelegramPhotoAlbumPayload | TelegramVideoPayload) {
+async function installPageBlobBridgeForSender(sender: chrome.runtime.MessageSender) {
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== "number") {
+    throw new Error("Cannot install page blob bridge without a sender tab ID.");
+  }
+
+  await ensurePageBlobBridgeInstalled(chrome, {
+    tabId,
+    ...(sender.documentId
+      ? { documentIds: [sender.documentId] }
+      : typeof sender.frameId === "number"
+        ? { frameIds: [sender.frameId] }
+        : {})
+  });
+}
+
+async function installPageStreamDiscoveryForSender(sender: chrome.runtime.MessageSender) {
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== "number") {
+    throw new Error("Cannot install page stream discovery without a sender tab ID.");
+  }
+
+  return await ensurePageStreamVideoDiscoveryInstalled(chrome, {
+    tabId,
+    ...(sender.documentId
+      ? { documentIds: [sender.documentId] }
+      : typeof sender.frameId === "number"
+        ? { frameIds: [sender.frameId] }
+        : {})
+  });
+}
+
+async function installPageTwitterVideoResolverForSender(sender: chrome.runtime.MessageSender) {
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== "number") {
+    throw new Error("Cannot install page Twitter/X video resolver without a sender tab ID.");
+  }
+
+  return await ensurePageTwitterVideoResolverInstalled(chrome, {
+    tabId,
+    ...(sender.documentId
+      ? { documentIds: [sender.documentId] }
+      : typeof sender.frameId === "number"
+        ? { frameIds: [sender.frameId] }
+        : {})
+  });
+}
+
+async function storeRecoveredVideoCandidates(
+  sender: chrome.runtime.MessageSender,
+  postUrl: string,
+  candidates: RecoveredVideoCandidate[]
+) {
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== "number") {
+    throw new Error("Cannot store recovered video candidates without a sender tab ID.");
+  }
+
+  return { stored: recoveredVideoCandidateStore.record(tabId, postUrl, candidates, { merge: true }) };
+}
+
+async function getRecoveredVideoCandidates(sender: chrome.runtime.MessageSender, postUrl: string) {
+  const tabId = sender.tab?.id;
+  if (typeof tabId !== "number") {
+    return { candidates: [] };
+  }
+
+  return {
+    candidates: recoveredVideoCandidateStore.get(tabId, postUrl)
+  };
+}
+
+async function sendToTelegram(
+  sender: chrome.runtime.MessageSender,
+  payload: TelegramPhotoPayload | TelegramPhotoAlbumPayload | TelegramVideoPayload
+) {
   const settings = await chrome.storage.local.get(DEFAULT_SETTINGS) as ExtensionSettings;
 
   if (!settings.botToken || !settings.channelId) {
@@ -48,7 +177,7 @@ async function sendToTelegram(payload: TelegramPhotoPayload | TelegramPhotoAlbum
   }
 
   if (payload.kind === "video") {
-    return sendVideo(settings, payload.postUrl);
+    return sendVideo(sender, settings, payload);
   }
 
   if (payload.kind === "photo") {
@@ -112,11 +241,55 @@ async function sendPhotoAlbum(settings: ExtensionSettings, payload: TelegramPhot
   return results;
 }
 
-async function sendVideo(settings: ExtensionSettings, postUrl: string) {
-  const video = await downloadVideoViaCobalt(settings, postUrl);
+async function sendVideo(
+  sender: chrome.runtime.MessageSender,
+  settings: ExtensionSettings,
+  payload: TelegramVideoPayload
+) {
+  const canRecoverCandidates = !payload.videoBlobBytes?.length;
+  const recoveredCandidates = canRecoverCandidates
+    ? await getRecoveredVideoCandidates(sender, payload.postUrl).then((result) => result.candidates)
+    : [];
+
+  let authoritativeCandidates: RecoveredVideoCandidate[] = [];
+  let resolverBrokenContainerPolicyError: string | null = null;
+  if (canRecoverCandidates) {
+    try {
+      authoritativeCandidates = await resolveTwitterVideoCandidates(payload.postUrl, fetch);
+    } catch (error: unknown) {
+      if (getErrorMessage(error) === TWITTER_BROKEN_CONTAINER_POLICY_ERROR) {
+        resolverBrokenContainerPolicyError = TWITTER_BROKEN_CONTAINER_POLICY_ERROR;
+      }
+    }
+  }
+
+  const mergedCandidates = mergeRecoveredVideoCandidates(
+    authoritativeCandidates,
+    getPayloadVideoCandidates(payload),
+    recoveredCandidates
+  );
+  const recoveredDirectVideoUrl = getBestRecoveredVideoDirectCandidate(mergedCandidates)?.url || null;
+  const recoveredPlaylistUrl = getRecoveredPlaylistCandidate(mergedCandidates)?.url || null;
+  const brokenContainerPolicy = getTwitterBrokenContainerPolicyForPost(payload.postUrl, mergedCandidates);
+  const directVideoUrl = brokenContainerPolicy.preferPlaylist ? null : (recoveredDirectVideoUrl || payload.videoUrl);
+  const playlistUrl = recoveredPlaylistUrl || payload.playlistUrl;
+  const brokenContainerPolicyError = brokenContainerPolicy.error || resolverBrokenContainerPolicyError;
+
+  if (brokenContainerPolicyError && !playlistUrl) {
+    throw new Error(brokenContainerPolicyError);
+  }
+
+  const video = payload.videoBlobBytes?.length
+    ? reconstructTransferredVideo(payload)
+    : await resolveVideoForSend(directVideoUrl, playlistUrl);
+
+  if (!video) {
+    throw new Error("Could not find a trustworthy downloadable video URL for this post. To avoid sending the wrong video, TTT stopped instead.");
+  }
+
   const formData = new FormData();
   formData.append("chat_id", settings.channelId);
-  formData.append("caption", buildCaption(postUrl, settings.autoPrefix));
+  formData.append("caption", buildCaption(payload.postUrl, settings.autoPrefix));
   formData.append("video", video.blob, video.filename || "video.mp4");
 
   const url = `https://api.telegram.org/bot${settings.botToken}/sendVideo`;
@@ -128,136 +301,124 @@ async function sendVideo(settings: ExtensionSettings, postUrl: string) {
   return handleTelegramResponse(response);
 }
 
-async function testCobaltAuth(payload: Pick<ExtensionSettings, "cobaltUrl" | "cobaltAuthToken" | "cobaltAuthScheme" | "cobaltQuality">) {
-  const api = normalizeCobaltUrl(payload.cobaltUrl);
-  await ensureCobaltOriginPermission(api);
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json"
+function reconstructTransferredVideo(payload: TelegramVideoPayload) {
+  const bytes = new Uint8Array(payload.videoBlobBytes || []);
+  return {
+    blob: new Blob([bytes], { type: payload.videoMimeType || "video/mp4" }),
+    filename: payload.videoFilename || "video.mp4"
   };
-
-  if (payload.cobaltAuthToken) {
-    headers.Authorization = `${normalizeAuthScheme(payload.cobaltAuthScheme)} ${payload.cobaltAuthToken}`;
-  }
-
-  const response = await fetch(`${api}/`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      url: "https://x.com/jack/status/20",
-      videoQuality: payload.cobaltQuality || "1080",
-      downloadMode: "auto",
-      localProcessing: "disabled"
-    })
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(formatCobaltAuthError(data, response.status, api));
-  }
-  return data;
 }
 
-async function downloadVideoViaCobalt(settings: Pick<ExtensionSettings, "cobaltUrl" | "cobaltAuthToken" | "cobaltAuthScheme" | "cobaltQuality">, sourceUrl: string) {
-  const api = normalizeCobaltUrl(settings.cobaltUrl);
-  await ensureCobaltOriginPermission(api);
-  const requestBody = {
-    url: sourceUrl,
-    videoQuality: settings.cobaltQuality || "1080",
-    downloadMode: "auto",
-    localProcessing: "disabled"
+async function resolveVideoForSend(directVideoUrl: string | null | undefined, playlistUrl: string | null | undefined) {
+  if (directVideoUrl) {
+    try {
+      return await downloadBrowserVideo(directVideoUrl, deriveVideoFilename(directVideoUrl));
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      const canRescueWithPlaylist = errorMessage === BROWSER_VIDEO_FETCH_FAILED_ERROR
+        || errorMessage === BROWSER_VIDEO_INVALID_FILE_ERROR
+        || /^Failed to download video file: (403|404|410)$/.test(errorMessage);
+
+      if (!playlistUrl || !canRescueWithPlaylist) {
+        throw error;
+      }
+    }
+  }
+
+  if (playlistUrl) {
+    return await downloadHlsVideo(playlistUrl);
+  }
+
+  return null;
+}
+
+function deriveVideoFilename(url: string) {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const lastSegment = parts.length ? parts[parts.length - 1] : undefined;
+    return lastSegment || "video.mp4";
+  } catch {
+    return "video.mp4";
+  }
+}
+
+function getPayloadVideoCandidates(payload: TelegramVideoPayload): RecoveredVideoCandidate[] {
+  const candidates: RecoveredVideoCandidate[] = [];
+
+  if (payload.videoUrl && classifyRecoveredVideoUrl(payload.videoUrl) === "direct-mp4") {
+    candidates.push({
+      kind: "direct-mp4",
+      url: payload.videoUrl
+    });
+  }
+
+  if (payload.playlistUrl && classifyRecoveredVideoUrl(payload.playlistUrl) === "hls-playlist") {
+    candidates.push({
+      kind: "hls-playlist",
+      url: payload.playlistUrl
+    });
+  }
+
+  return candidates;
+}
+
+function getBestRecoveredVideoDirectCandidate(candidates: RecoveredVideoCandidate[]) {
+  return getBestRecoveredVideoCandidate(
+    candidates.filter((candidate) => candidate.kind === "direct-mp4")
+  );
+}
+
+function getRecoveredPlaylistCandidate(candidates: RecoveredVideoCandidate[]) {
+  const playlistCandidates = candidates.filter(
+    (candidate) => candidate.kind === "hls-playlist" && classifyRecoveredVideoUrl(candidate.url) === "hls-playlist"
+  );
+
+  if (playlistCandidates.length === 0) {
+    return null;
+  }
+
+  return playlistCandidates.reduce((bestCandidate, candidate) => {
+    if (!bestCandidate) {
+      return candidate;
+    }
+
+    const candidateSourceScore = scoreRecoveredPlaylistSource(candidate.source);
+    const bestSourceScore = scoreRecoveredPlaylistSource(bestCandidate.source);
+
+    if (candidateSourceScore < bestSourceScore) {
+      return candidate;
+    }
+
+    if (candidateSourceScore === bestSourceScore) {
+      return candidate;
+    }
+
+    return bestCandidate;
+  }, null as RecoveredVideoCandidate | null);
+}
+
+function getTwitterBrokenContainerPolicyForPost(postUrl: string, candidates: RecoveredVideoCandidate[]) {
+  const tweetId = parseTwitterPostRef(postUrl)?.tweetId || null;
+  const isBrokenWindow = isTwitterBrokenContainerTweetId(tweetId);
+  const hasPlaylist = candidates.some((candidate) => candidate.kind === "hls-playlist");
+  const hasDirectMp4 = candidates.some((candidate) => candidate.kind === "direct-mp4");
+
+  return {
+    preferPlaylist: isBrokenWindow && hasPlaylist,
+    error: isBrokenWindow && hasDirectMp4 && !hasPlaylist
+      ? TWITTER_BROKEN_CONTAINER_POLICY_ERROR
+      : null
   };
-
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json"
-  };
-
-  if (settings.cobaltAuthToken) {
-    headers.Authorization = `${normalizeAuthScheme(settings.cobaltAuthScheme)} ${settings.cobaltAuthToken}`;
-  }
-
-  const response = await fetch(`${api}/`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(requestBody)
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(formatCobaltAuthError(data, response.status, api));
-  }
-
-  const resolution = resolveCobaltDownload(data);
-  if (!resolution.url) {
-    throw new Error(`Cobalt could not resolve video: ${data?.error?.code || data.status || "unknown"}`);
-  }
-
-  return fetchBinaryFile(resolution.url, resolution.filename || data.filename || data.output?.filename || "video.mp4");
 }
 
-function resolveCobaltDownload(data: any): CobaltResolution {
-  if (data.status === "redirect" && data.url) return { url: data.url, filename: data.filename };
-  if (data.status === "tunnel" && data.url) return { url: data.url, filename: data.filename };
-  if (data.status === "local-processing" && Array.isArray(data.tunnel) && data.tunnel.length > 0) {
-    return { url: data.tunnel[0], filename: data.output?.filename };
-  }
-  if (data.status === "picker" && Array.isArray(data.picker)) {
-    const videoItem = data.picker.find((item: any) => item.type === "video") || data.picker[0];
-    if (videoItem?.url) return { url: videoItem.url, filename: videoItem.filename || videoItem.thumb };
-  }
-  return { url: null, filename: null };
-}
-
-function normalizeCobaltUrl(url: string) {
-  const cleaned = String(url || "").trim().replace(/\/$/, "");
-  return cleaned || "https://api.cobalt.tools";
-}
-
-async function ensureCobaltOriginPermission(url: string) {
-  const origin = toPermissionOrigin(url);
-  const contains = await chrome.permissions.contains({ origins: [origin] });
-  if (contains) return;
-
-  const granted = await chrome.permissions.request({ origins: [origin] });
-  if (!granted) {
-    throw new Error(`Grant TTT access to ${origin.slice(0, -2)} to use this Cobalt instance.`);
-  }
-}
-
-function toPermissionOrigin(url: string) {
-  const parsed = new URL(normalizeCobaltUrl(url));
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("Cobalt URL must use HTTP or HTTPS.");
+function scoreRecoveredPlaylistSource(source: RecoveredVideoCandidate["source"]) {
+  if (!source) {
+    return RECOVERED_VIDEO_SOURCE_PRIORITY.length;
   }
 
-  return `${parsed.origin}/*`;
-}
-
-function normalizeAuthScheme(scheme: string) {
-  const cleaned = String(scheme || "Api-Key").trim();
-  if (!cleaned) return "Api-Key";
-  return /^[A-Za-z][A-Za-z0-9_-]*$/.test(cleaned) ? cleaned : "Api-Key";
-}
-
-function formatCobaltAuthError(data: any, status: number, api: string) {
-  const code = data?.error?.code || data?.error || data?.code || null;
-  const message = data?.error?.message || data?.message || data?.description || null;
-  const authHint = code && typeof code === "string" && code.includes("auth")
-    ? ` Check the API key and scheme in Cobalt. For a self-hosted instance, verify the UUIDv4 key in keys.json and use Api-Key first.`
-    : "";
-  const detail = message ? ` (${message})` : "";
-  const codePart = code ? `: ${code}` : "";
-  return `Cobalt request failed${codePart || `: ${status}`}${detail}${authHint} [${api}]`;
-}
-
-async function fetchBinaryFile(url: string, filename: string) {
-  const response = await fetch(url, { credentials: "omit" });
-  if (!response.ok) {
-    throw new Error(`Failed to download video file: ${response.status}`);
-  }
-  const blob = await response.blob();
-  return { blob, filename };
+  const index = RECOVERED_VIDEO_SOURCE_PRIORITY.indexOf(source);
+  return index === -1 ? RECOVERED_VIDEO_SOURCE_PRIORITY.length : index;
 }
 
 async function handleTelegramResponse(response: Response) {

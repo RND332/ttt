@@ -21,13 +21,14 @@ export default defineConfig({
     name: "TTT",
     version: "1.0.0",
     description: "Sends X post media to Telegram with one click.",
-    permissions: ["storage", "activeTab", "tabs", "permissions"],
-    host_permissions: ["https://x.com/*", "https://twitter.com/*", "https://api.telegram.org/*"],
-    optional_host_permissions: [
-      "https://*/*",
-      "http://*/*",
-      "http://localhost/*",
-      "http://127.0.0.1/*",
+    permissions: ["storage", "scripting"],
+    host_permissions: [
+      "https://x.com/*",
+      "https://twitter.com/*",
+      "https://api.x.com/*",
+      "https://cdn.syndication.twimg.com/*",
+      "https://video.twimg.com/*",
+      "https://api.telegram.org/*"
     ],
     action: {
       default_title: "TTT",

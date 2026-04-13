@@ -13,12 +13,30 @@ export type TelegramPhotoAlbumPayload = {
 export type TelegramVideoPayload = {
   kind: "video";
   postUrl: string;
+  videoUrl?: string;
+  playlistUrl?: string;
+  blobUrl?: string;
 };
 
 const PHOTO_SELECTORS = [
   "div[data-testid='tweetPhoto'] img",
   "img[src*='twimg.com/media']",
   "img[src*='pbs.twimg.com/media']"
+];
+
+const VIDEO_CONTAINER_SELECTORS = [
+  "div[data-testid='videoComponent']",
+  "div[aria-label*='video' i]",
+  "div[aria-label*='Video' i]",
+  "video"
+];
+
+const VIDEO_URL_ATTRIBUTE_NAMES = [
+  "data-playback-url",
+  "data-video-url",
+  "data-src",
+  "data-url",
+  "src"
 ];
 
 export function extractPostData(article: Element): TelegramPhotoPayload | TelegramPhotoAlbumPayload | TelegramVideoPayload | null {
@@ -28,7 +46,10 @@ export function extractPostData(article: Element): TelegramPhotoPayload | Telegr
   if (hasVideoMedia(article)) {
     return {
       kind: "video",
-      postUrl
+      postUrl,
+      videoUrl: getDirectVideoUrl(article) || undefined,
+      playlistUrl: getStreamingPlaylistUrl(article) || undefined,
+      blobUrl: getBlobVideoUrl(article) || undefined
     };
   }
 
@@ -61,12 +82,122 @@ function findDirectMediaNodes(root: Element, selectors: string[]) {
 }
 
 function hasVideoMedia(article: Element) {
-  return findDirectMediaNodes(article, [
-    "div[data-testid='videoComponent']",
-    "div[aria-label*='video' i]",
-    "div[aria-label*='Video' i]",
-    "video"
-  ]).length > 0;
+  return findDirectMediaNodes(article, VIDEO_CONTAINER_SELECTORS).length > 0;
+}
+
+function getDirectVideoUrl(article: Element) {
+  const candidates = collectVideoCandidates(article);
+  return chooseBestVideoCandidate(candidates);
+}
+
+function getBlobVideoUrl(article: Element) {
+  const candidates = collectVideoCandidates(article);
+  return chooseBestBlobCandidate(candidates);
+}
+
+function getStreamingPlaylistUrl(article: Element) {
+  const candidates = collectVideoCandidates(article);
+  return chooseBestPlaylistCandidate(candidates);
+}
+
+function collectVideoCandidates(article: Element) {
+  const candidates = new Set<string>();
+  const directNodes = findDirectMediaNodes(article, VIDEO_CONTAINER_SELECTORS);
+
+  for (const node of directNodes) {
+    collectCandidateUrlsFromElement(node).forEach((candidate) => candidates.add(candidate));
+    for (const child of Array.from(node.querySelectorAll("video, source, [data-playback-url], [data-video-url], [data-src], [data-url]"))) {
+      if (isInsideNestedQuote(child, article)) continue;
+      collectCandidateUrlsFromElement(child).forEach((candidate) => candidates.add(candidate));
+    }
+  }
+
+  return Array.from(candidates);
+}
+
+function collectCandidateUrlsFromElement(node: Element) {
+  const candidates: string[] = [];
+
+  if (node.tagName === "VIDEO") {
+    const video = node as HTMLVideoElement;
+    pushCandidate(candidates, video.currentSrc);
+    pushCandidate(candidates, video.src);
+  }
+
+  if (node.tagName === "SOURCE") {
+    pushCandidate(candidates, node.getAttribute("src"));
+    pushCandidate(candidates, node.getAttribute("data-src"));
+  }
+
+  for (const attr of VIDEO_URL_ATTRIBUTE_NAMES) {
+    pushCandidate(candidates, node.getAttribute(attr));
+  }
+
+  return candidates;
+}
+
+function pushCandidate(candidates: string[], value: string | null | undefined) {
+  const normalized = normalizeCandidateUrl(value);
+  if (normalized) candidates.push(normalized);
+}
+
+function normalizeCandidateUrl(value: string | null | undefined) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return null;
+  if (isBlobUrl(cleaned)) return cleaned;
+  if (!isHttpUrl(cleaned)) return null;
+  if (isClearlyNotVideo(cleaned)) return null;
+  if (isLikelySegmentArtifact(cleaned)) return null;
+  return cleaned;
+}
+
+function chooseBestVideoCandidate(candidates: string[]) {
+  const ranked = candidates
+    .filter((candidate) => isHttpUrl(candidate))
+    .filter((candidate) => !isStreamingPlaylist(candidate))
+    .sort((left, right) => scoreVideoCandidate(right) - scoreVideoCandidate(left));
+
+  return ranked[0] || null;
+}
+
+function chooseBestBlobCandidate(candidates: string[]) {
+  const blobs = candidates.filter((candidate) => /^blob:/i.test(candidate));
+  return blobs[0] || null;
+}
+
+function chooseBestPlaylistCandidate(candidates: string[]) {
+  const playlists = candidates
+    .filter((candidate) => isHttpUrl(candidate))
+    .filter((candidate) => isStreamingPlaylist(candidate));
+
+  return playlists[0] || null;
+}
+
+function scoreVideoCandidate(url: string) {
+  let score = 0;
+  if (/^https:\/\//i.test(url)) score += 20;
+  if (/video\.twimg\.com/i.test(url)) score += 10;
+  if (/\.(mp4|mov|webm)(\?|$)/i.test(url)) score += 30;
+  if (/\/vid\//i.test(url)) score += 5;
+  return score;
+}
+
+function isStreamingPlaylist(url: string) {
+  return /\.m3u8(\?|$)/i.test(url);
+}
+
+function isClearlyNotVideo(url: string) {
+  return /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url);
+}
+
+function isLikelySegmentArtifact(url: string) {
+  return /(?:^|\/)init\.(?:mp4|m4s)(?:\?|$)/i.test(url)
+    || /(?:^|\/)(?:chunk|segment|frag|fragment)[^/]*\.(?:m4s|ts|aac)(?:\?|$)/i.test(url)
+    || /\.(?:m4s|ts|aac)(\?|$)/i.test(url);
+}
+
+function isBlobUrl(value: string) {
+  return /^blob:/i.test(value);
 }
 
 function isInsideNestedQuote(node: Element, rootArticle: Element) {
@@ -76,10 +207,6 @@ function isInsideNestedQuote(node: Element, rootArticle: Element) {
     current = current.parentElement;
   }
   return false;
-}
-
-function getOwningArticle(node: Element) {
-  return node.closest("article");
 }
 
 function getElementUrl(el: Element) {
@@ -105,10 +232,15 @@ function isHttpUrl(value: string) {
 }
 
 function getPostUrl(article: Element) {
-  const anchors = Array.from(article.querySelectorAll("a[href]"));
-  const anchor = anchors.find((node) => {
+  const anchors = Array.from(article.querySelectorAll("a[href]"))
+    .filter((node) => !isInsideNestedQuote(node, article));
+  const mediaRouteAnchor = anchors.find((node) => {
     const href = node.getAttribute("href") || "";
-    return /\/status\/\d+/.test(href) && !isInsideNestedQuote(node, article);
+    return /\/status\/\d+\/video\/\d+/i.test(href);
+  });
+  const anchor = mediaRouteAnchor || anchors.find((node) => {
+    const href = node.getAttribute("href") || "";
+    return /\/status\/\d+/i.test(href);
   });
 
   if (!anchor) return null;

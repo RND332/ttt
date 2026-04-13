@@ -62,6 +62,32 @@ test("extractPostData ignores quoted images when the main post is a video", () =
   const data = extractPostData(article as Element);
   expect(data).toEqual({
     kind: "video",
-    postUrl: "https://x.com/user/status/555"
+    postUrl: "https://x.com/user/status/555",
+    videoUrl: "https://video.twimg.com/ext_tw_video/main.mp4"
+  });
+});
+
+test("extractPostData ignores quoted mp4 candidates when selecting the main post video", () => {
+  const { document } = parseHTML(`
+    <article>
+      <a href="/user/status/556">main</a>
+      <div data-testid="videoComponent" data-playback-url="https://video.twimg.com/ext_tw_video/main-only.mp4"></div>
+      <blockquote>
+        <article>
+          <a href="/quoted/status/667">quoted</a>
+          <video src="https://video.twimg.com/ext_tw_video/quoted.mp4"></video>
+        </article>
+      </blockquote>
+    </article>
+  `);
+
+  const article = document.querySelector("article");
+  expect(article).toBeTruthy();
+
+  const data = extractPostData(article as Element);
+  expect(data).toEqual({
+    kind: "video",
+    postUrl: "https://x.com/user/status/556",
+    videoUrl: "https://video.twimg.com/ext_tw_video/main-only.mp4"
   });
 });

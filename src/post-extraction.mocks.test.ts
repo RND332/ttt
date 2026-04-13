@@ -49,3 +49,30 @@ test.each(cases)("extractPostData classifies %s", async ({ path, expectedKinds }
   const results = articles.map((article) => extractPostData(article as Element)?.kind ?? null);
   expect(results).toEqual(expectedKinds);
 });
+
+test("extractPostData prefers downloadable video URLs from data attributes over playlist-only candidates", () => {
+  const { document } = parseHTML(`
+    <main>
+      <article data-testid="tweet">
+        <a href="/user/status/2000">main</a>
+        <div data-testid="videoComponent" data-playback-url="https://video.twimg.com/ext_tw_video/2000/pu/vid/avc1/main.mp4">
+          <video>
+            <source src="https://video.twimg.com/ext_tw_video/2000/master.m3u8" />
+          </video>
+        </div>
+      </article>
+    </main>
+  `);
+
+  const article = document.querySelector("article[data-testid='tweet']");
+  expect(article).toBeTruthy();
+
+  const data = extractPostData(article as Element);
+  expect(data).toEqual({
+    kind: "video",
+    postUrl: "https://x.com/user/status/2000",
+    videoUrl: "https://video.twimg.com/ext_tw_video/2000/pu/vid/avc1/main.mp4",
+    playlistUrl: "https://video.twimg.com/ext_tw_video/2000/master.m3u8",
+    blobUrl: undefined
+  });
+});

@@ -14,8 +14,22 @@ export interface TelegramPhotoAlbumPayload extends TelegramPayloadBase {
   mediaUrls: string[];
 }
 
+export interface RecoveredVideoCandidate {
+  kind: "direct-mp4" | "hls-playlist";
+  url: string;
+  mimeType?: string;
+  bitrate?: number;
+  source?: "page-fetch" | "page-xhr" | "performance" | "webRequest" | "tweet-json";
+}
+
 export interface TelegramVideoPayload extends TelegramPayloadBase {
   kind: "video";
+  videoUrl?: string;
+  blobUrl?: string;
+  videoBlobBytes?: number[];
+  videoFilename?: string;
+  videoMimeType?: string;
+  playlistUrl?: string;
 }
 
 export type TelegramSendPayload = TelegramPhotoPayload | TelegramPhotoAlbumPayload | TelegramVideoPayload;
@@ -23,20 +37,12 @@ export type TelegramSendPayload = TelegramPhotoPayload | TelegramPhotoAlbumPaylo
 export interface ExtensionSettings {
   botToken: string;
   channelId: string;
-  cobaltUrl: string;
-  cobaltAuthToken: string;
-  cobaltAuthScheme: string;
-  cobaltQuality: string;
   autoPrefix: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   botToken: "",
   channelId: "",
-  cobaltUrl: "https://api.cobalt.tools",
-  cobaltAuthToken: "",
-  cobaltAuthScheme: "Api-Key",
-  cobaltQuality: "1080",
   autoPrefix: true
 };
 
@@ -45,12 +51,40 @@ export interface SendToTelegramMessage {
   payload: TelegramSendPayload;
 }
 
-export interface TestCobaltAuthMessage {
-  type: "TEST_COBALT_AUTH";
-  payload: Pick<ExtensionSettings, "cobaltUrl" | "cobaltAuthToken" | "cobaltAuthScheme" | "cobaltQuality">;
+export interface EnsurePageBlobBridgeMessage {
+  type: "ENSURE_PAGE_BLOB_BRIDGE";
 }
 
-export type BackgroundMessage = SendToTelegramMessage | TestCobaltAuthMessage;
+export interface EnsurePageStreamVideoDiscoveryMessage {
+  type: "ENSURE_PAGE_STREAM_VIDEO_DISCOVERY";
+}
+
+export interface EnsurePageTwitterVideoResolverMessage {
+  type: "ENSURE_PAGE_TWITTER_VIDEO_RESOLVER";
+}
+
+export interface ReportRecoveredVideoCandidatesMessage {
+  type: "REPORT_RECOVERED_VIDEO_CANDIDATES";
+  postUrl: string;
+  candidates: RecoveredVideoCandidate[];
+}
+
+export interface GetRecoveredVideoCandidatesMessage {
+  type: "GET_RECOVERED_VIDEO_CANDIDATES";
+  postUrl: string;
+}
+
+export interface GetRecoveredVideoCandidatesResult {
+  candidates: RecoveredVideoCandidate[];
+}
+
+export type BackgroundMessage =
+  | SendToTelegramMessage
+  | EnsurePageBlobBridgeMessage
+  | EnsurePageStreamVideoDiscoveryMessage
+  | EnsurePageTwitterVideoResolverMessage
+  | ReportRecoveredVideoCandidatesMessage
+  | GetRecoveredVideoCandidatesMessage;
 
 export interface MessageOkResponse<T = unknown> {
   ok: true;
@@ -63,8 +97,3 @@ export interface MessageErrorResponse {
 }
 
 export type MessageResponse<T = unknown> = MessageOkResponse<T> | MessageErrorResponse;
-
-export interface CobaltResolution {
-  url: string | null;
-  filename: string | null;
-}

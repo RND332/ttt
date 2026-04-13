@@ -35,3 +35,13 @@ test("sendExtensionMessage throws a clear error when no messaging API is availab
     "Extension messaging API is unavailable in this context."
   );
 });
+
+test("sendExtensionMessage throws the same clear error when runtime exists but sendMessage is missing", async () => {
+  (globalThis as any).chrome = {
+    runtime: {}
+  };
+
+  await expect(sendExtensionMessage({ type: "PING" })).rejects.toThrow(
+    "Extension messaging API is unavailable in this context."
+  );
+});

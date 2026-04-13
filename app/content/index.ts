@@ -1,4 +1,4 @@
-import type { BackgroundMessage, MessageResponse, TelegramSendPayload } from "../../src/shared";
+import { createSendHandler } from "../../src/content-send";
 import { extractPostData } from "../../src/post-extraction";
 
 const BUTTON_CLASS = "ttt-send-button";
@@ -13,7 +13,7 @@ function bootstrap() {
     return;
   }
 
-  queueMicrotask(initialize);
+  initialize();
 }
 
 function initialize() {
@@ -70,11 +70,13 @@ function scanPosts() {
     if (!data) return;
     article.setAttribute(PROCESSED_ATTR, "true");
     const footer = article.querySelector("[role='group']") || article;
-    footer.appendChild(buildButton(data));
+    footer.appendChild(buildButton(article, data));
   });
 }
 
-function buildButton(data: TelegramSendPayload) {
+function buildButton(article: Element, data: ReturnType<typeof extractPostData>) {
+  if (!data) throw new Error("Cannot build button without post data.");
+
   const button = document.createElement("button");
   button.type = "button";
   button.className = BUTTON_CLASS;
@@ -118,15 +120,15 @@ function buildButton(data: TelegramSendPayload) {
 
   button.append(icon, status);
 
+  const send = createSendHandler();
   button.addEventListener("click", async () => {
     button.disabled = true;
     const originalStatus = status.textContent;
     status.textContent = data.kind === "video" ? "Downloading…" : "Sending…";
     try {
-      const response = await chrome.runtime.sendMessage<BackgroundMessage, MessageResponse>({
-        type: "SEND_TO_TELEGRAM",
-        payload: data
-      });
+      const latestData = extractPostData(article);
+      const payload = latestData || data;
+      const response = await send(payload);
       if (!response?.ok) throw new Error("error" in response ? response.error || "Unknown error" : "Unknown error");
       status.textContent = "Sent";
       setTimeout(() => {
