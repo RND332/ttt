@@ -1,9 +1,11 @@
 import { createSendHandler } from "../../src/content-send";
+import { getErrorMessage } from "../../src/error-message";
 import { extractPostData } from "../../src/post-extraction";
 
 const BUTTON_CLASS = "ttt-send-button";
 const PROCESSED_ATTR = "data-ttt-processed";
 const POST_SELECTOR = "article";
+let sendHandler: ReturnType<typeof createSendHandler> | null = null;
 
 bootstrap();
 
@@ -80,6 +82,7 @@ function buildButton(article: Element, data: ReturnType<typeof extractPostData>)
   const button = document.createElement("button");
   button.type = "button";
   button.className = BUTTON_CLASS;
+  const send = sendHandler ?? (sendHandler = createSendHandler());
   button.title = data.kind === "video"
     ? "Download the video and send it to Telegram"
     : data.kind === "photo-album"
@@ -120,7 +123,6 @@ function buildButton(article: Element, data: ReturnType<typeof extractPostData>)
 
   button.append(icon, status);
 
-  const send = createSendHandler();
   button.addEventListener("click", async () => {
     button.disabled = true;
     const originalStatus = status.textContent;
@@ -157,6 +159,3 @@ function isDebugEnabled() {
   return typeof window !== "undefined" && window.localStorage.getItem("ttt-debug") === "1";
 }
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}

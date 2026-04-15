@@ -1,1 +1,1 @@
-import "../../src/options-ui";
+import "../../src/options-ui.tsx";

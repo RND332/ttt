@@ -3,6 +3,7 @@ import {
   BROWSER_VIDEO_INVALID_FILE_ERROR,
   downloadBrowserVideo
 } from "../../src/browser-video-download";
+import { getErrorMessage } from "../../src/error-message";
 import { downloadHlsVideo } from "../../src/hls-video-download";
 import { ensurePageBlobBridgeInstalled } from "../../src/page-blob-video-bridge-install";
 import {
@@ -46,49 +47,46 @@ chrome.action.onClicked.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
   if (message?.type === "SEND_TO_TELEGRAM") {
-    sendToTelegram(sender, message.payload)
-      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
-      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    respondWith(sendResponse, sendToTelegram(sender, message.payload));
     return true;
   }
 
   if (message?.type === "ENSURE_PAGE_BLOB_BRIDGE") {
-    installPageBlobBridgeForSender(sender)
-      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
-      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    respondWith(sendResponse, installPageBlobBridgeForSender(sender));
     return true;
   }
 
   if (message?.type === "ENSURE_PAGE_STREAM_VIDEO_DISCOVERY") {
-    installPageStreamDiscoveryForSender(sender)
-      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
-      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    respondWith(sendResponse, installPageStreamDiscoveryForSender(sender));
     return true;
   }
 
   if (message?.type === "ENSURE_PAGE_TWITTER_VIDEO_RESOLVER") {
-    installPageTwitterVideoResolverForSender(sender)
-      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
-      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    respondWith(sendResponse, installPageTwitterVideoResolverForSender(sender));
     return true;
   }
 
   if (message?.type === "REPORT_RECOVERED_VIDEO_CANDIDATES") {
-    storeRecoveredVideoCandidates(sender, message.postUrl, message.candidates)
-      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
-      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    respondWith(sendResponse, storeRecoveredVideoCandidates(sender, message.postUrl, message.candidates));
     return true;
   }
 
   if (message?.type === "GET_RECOVERED_VIDEO_CANDIDATES") {
-    getRecoveredVideoCandidates(sender, message.postUrl)
-      .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse))
-      .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse));
+    respondWith(sendResponse, getRecoveredVideoCandidates(sender, message.postUrl));
     return true;
   }
 
   return false;
 });
+
+function respondWith<T>(
+  sendResponse: (response: MessageResponse<T>) => void,
+  operation: Promise<T>
+) {
+  operation
+    .then((result) => sendResponse({ ok: true, result } satisfies MessageResponse<T>))
+    .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse<T>));
+}
 
 async function installPageBlobBridgeForSender(sender: chrome.runtime.MessageSender) {
   const tabId = sender.tab?.id;
@@ -451,6 +449,3 @@ function chunkArray<T>(items: T[], size: number) {
   return chunks;
 }
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}

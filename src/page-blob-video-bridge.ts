@@ -1,9 +1,11 @@
+import { getErrorMessage } from "./error-message";
+
 function getBlobBridgeErrorMessage(error: unknown) {
   if (error instanceof TypeError && error.message === "Failed to fetch") {
     return "This X video appears to be stream-backed (likely MediaSource/HLS), so the browser cannot fetch it directly yet.";
   }
 
-  return error instanceof Error ? error.message : String(error);
+  return getErrorMessage(error);
 }
 
 export const TTT_PAGE_BLOB_REQUEST = "TTT_PAGE_BLOB_VIDEO_REQUEST";
