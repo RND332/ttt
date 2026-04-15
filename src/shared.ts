@@ -1,5 +1,3 @@
-export type MediaKind = "photo" | "video";
-
 export interface TelegramPayloadBase {
   postUrl: string;
 }

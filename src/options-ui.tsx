@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ExtensionSettings } from "./shared";
 import { DEFAULT_SETTINGS } from "./shared";
+
+function normalizeSettings(settings: ExtensionSettings): ExtensionSettings {
+  return {
+    botToken: settings.botToken.trim(),
+    channelId: settings.channelId.trim(),
+    autoPrefix: settings.autoPrefix
+  };
+}
 
 function OptionsPage() {
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
@@ -11,7 +19,20 @@ function OptionsPage() {
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextAutosaveRef = useRef(true);
 
-  const storage = useMemo(() => chrome.storage.local, []);
+  const storage = chrome.storage.local;
+
+  const showStatus = useCallback((message: string) => {
+    setStatus(message);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => {
+      setStatus((current) => (current === message ? "" : current));
+    }, 1500);
+  }, []);
+
+  const saveSettings = useCallback(async (message: string = "Saved") => {
+    await storage.set(normalizeSettings(settings));
+    showStatus(message);
+  }, [settings, showStatus, storage]);
 
   useEffect(() => {
     void (async () => {
@@ -39,23 +60,10 @@ function OptionsPage() {
     autosaveTimerRef.current = setTimeout(() => {
       void saveSettings("Auto-saved");
     }, 500);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, hydrated]);
-
-  async function saveSettings(message: string = "Saved") {
-    const nextSettings: ExtensionSettings = {
-      botToken: settings.botToken.trim(),
-      channelId: settings.channelId.trim(),
-      autoPrefix: settings.autoPrefix
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
-
-    await storage.set(nextSettings);
-    setStatus(message);
-    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    statusTimerRef.current = setTimeout(() => {
-      setStatus((current) => (current === message ? "" : current));
-    }, 1500);
-  }
+  }, [hydrated, saveSettings]);
 
   function updateSetting<K extends keyof ExtensionSettings>(key: K, value: ExtensionSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));

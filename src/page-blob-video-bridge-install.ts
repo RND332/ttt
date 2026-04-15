@@ -2,6 +2,7 @@ import {
   TTT_PAGE_BLOB_REQUEST,
   TTT_PAGE_BLOB_RESPONSE
 } from "./page-blob-video-bridge";
+import { getErrorMessage } from "./error-message";
 
 type ChromeScriptingApi = {
   executeScript: (injection: {
@@ -31,7 +32,7 @@ function getBlobBridgeErrorMessage(error: unknown) {
     return "This X video appears to be stream-backed (likely MediaSource/HLS), so the browser cannot fetch it directly yet.";
   }
 
-  return error instanceof Error ? error.message : String(error);
+  return getErrorMessage(error);
 }
 
 export async function ensurePageBlobBridgeInstalled(chromeApi: ChromeWithScripting, target: BridgeTarget) {
@@ -110,7 +111,7 @@ export function installMainWorldBlobBridge(targetWindow: Window & { __tttPageBlo
         type: TTT_PAGE_BLOB_RESPONSE,
         requestId: message.data.requestId,
         ok: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: getBlobBridgeErrorMessage(error)
       }, "*");
     }
   });
