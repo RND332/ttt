@@ -63,6 +63,7 @@ function installChromeRuntime() {
     if (message.type === "ENSURE_PAGE_STREAM_VIDEO_DISCOVERY") {
       return { ok: true, result: undefined };
     }
+    if (message.type === "GET_POSTED_POSTS") return { ok: true, result: { postIds: [] } };
 
     if (message.type === "REPORT_RECOVERED_VIDEO_CANDIDATES") {
       storedCandidates.set(message.postUrl, message.candidates);
@@ -95,13 +96,15 @@ function installChromeRuntime() {
         get: vi.fn(async () => ({
           botToken: "token",
           channelId: "channel",
-          autoPrefix: true
+          captionPrefix: "New post",
+          includePostLink: true
         })),
         set: vi.fn(async () => undefined)
       }
     },
     runtime: {
-      sendMessage
+      sendMessage,
+      onMessage: { addListener: vi.fn() }
     }
   };
 
@@ -307,6 +310,7 @@ test("content integration alerts the explicit background ambiguity error when no
   const sendMessage = (globalThis as any).chrome.runtime.sendMessage;
   sendMessage.mockImplementation(async (message: any) => {
     messages.push(message);
+    if (message.type === "GET_POSTED_POSTS") return { ok: true, result: { postIds: [] } };
 
     if (message.type === "GET_RECOVERED_VIDEO_CANDIDATES") {
       return {

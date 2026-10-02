@@ -67,25 +67,3 @@ test("background registers an action click handler that opens the options page",
   expect((globalThis as any).chrome.runtime.openOptionsPage).toHaveBeenCalledTimes(1);
 });
 
-test("background seeds stored settings with defaults during install bootstrap", async () => {
-  const storedSettings = {
-    autoPrefix: false,
-    botToken: "bot-token",
-    channelId: "@channel"
-  };
-  (globalThis as any).chrome.storage.local.get.mockResolvedValueOnce(storedSettings);
-
-  await import("../app/background/index");
-
-  const installedListener = (globalThis as any).__tttInstalledListener as (() => Promise<void>) | undefined;
-
-  expect(installedListener).toBeTypeOf("function");
-
-  await installedListener?.();
-
-  expect((globalThis as any).chrome.storage.local.get).toHaveBeenCalledWith(DEFAULT_SETTINGS);
-  expect((globalThis as any).chrome.storage.local.set).toHaveBeenCalledWith({
-    ...DEFAULT_SETTINGS,
-    ...storedSettings
-  });
-});

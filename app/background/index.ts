@@ -23,23 +23,26 @@ import {
   resolveTwitterVideoCandidates,
   TWITTER_BROKEN_CONTAINER_POLICY_ERROR
 } from "../../src/twitter-video-metadata-resolver";
+import { getPostedPostIds, isPostPosted, recordPostedPost } from "../../src/posted-posts";
+import { loadExtensionSettings } from "../../src/settings";
 import type {
   BackgroundMessage,
   ExtensionSettings,
   MessageResponse,
   RecoveredVideoCandidate,
+  PostPostedMessage,
   TelegramPhotoAlbumPayload,
   TelegramPhotoPayload,
   TelegramVideoPayload
 } from "../../src/shared";
-import { DEFAULT_SETTINGS } from "../../src/shared";
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const existing = await chrome.storage.local.get(DEFAULT_SETTINGS);
-  await chrome.storage.local.set({ ...DEFAULT_SETTINGS, ...existing });
+  await chrome.storage.local.set(await loadExtensionSettings());
+  await chrome.storage.local.remove("autoPrefix");
 });
 
 const recoveredVideoCandidateStore = createRecoveredVideoCandidateStore();
+const inFlightPosts = new Map<string, Promise<unknown>>();
 
 chrome.action.onClicked.addListener(() => {
   chrome.runtime.openOptionsPage();
@@ -73,6 +76,11 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
 
   if (message?.type === "GET_RECOVERED_VIDEO_CANDIDATES") {
     respondWith(sendResponse, getRecoveredVideoCandidates(sender, message.postUrl));
+    return true;
+  }
+
+  if (message?.type === "GET_POSTED_POSTS") {
+    respondWith(sendResponse, getPostedPostIds(message.postIds).then((postIds) => ({ postIds })));
     return true;
   }
 
@@ -164,7 +172,7 @@ async function sendToTelegram(
   sender: chrome.runtime.MessageSender,
   payload: TelegramPhotoPayload | TelegramPhotoAlbumPayload | TelegramVideoPayload
 ) {
-  const settings = await chrome.storage.local.get(DEFAULT_SETTINGS) as ExtensionSettings;
+  const settings = await loadExtensionSettings();
 
   if (!settings.botToken || !settings.channelId) {
     throw new Error("Configure your Telegram bot token and channel ID in extension options.");
@@ -174,19 +182,50 @@ async function sendToTelegram(
     throw new Error("Missing post URL.");
   }
 
-  if (payload.kind === "video") {
-    return sendVideo(sender, settings, payload);
-  }
+  const postId = parseTwitterPostRef(payload.postUrl)?.tweetId;
+  if (!postId) throw new Error("Invalid X post URL.");
 
-  if (payload.kind === "photo") {
-    return sendPhoto(settings, payload);
-  }
+  const pending = inFlightPosts.get(postId);
+  if (pending) return pending;
 
-  if (payload.kind === "photo-album") {
-    return sendPhotoAlbum(settings, payload);
-  }
+  const operation = (async () => {
+    if (await isPostPosted(postId)) return { alreadyPosted: true };
 
-  throw new Error("Unsupported media type.");
+    let result: unknown;
+    switch (payload.kind) {
+      case "video":
+        result = await sendVideo(sender, settings, payload);
+        break;
+      case "photo":
+        result = await sendPhoto(settings, payload);
+        break;
+      case "photo-album":
+        result = await sendPhotoAlbum(settings, payload);
+        break;
+      default:
+        throw new Error("Unsupported media type.");
+    }
+
+    await recordPostedPost(postId);
+    void notifyPosted(postId).catch((error: unknown) => {
+      console.warn("[TTT] Post saved, but open tabs could not be notified", error);
+    });
+    return result;
+  })().finally(() => inFlightPosts.delete(postId));
+  inFlightPosts.set(postId, operation);
+  return operation;
+}
+
+async function notifyPosted(postId: string) {
+  const tabs = await chrome.tabs.query({ url: ["https://x.com/*", "https://twitter.com/*"] });
+  // Tabs may have navigated away or not loaded a content script yet.
+  const notifications: Promise<unknown>[] = [];
+  for (const tab of tabs) {
+    if (tab.id !== undefined) {
+      notifications.push(chrome.tabs.sendMessage(tab.id, { type: "POST_POSTED", postId } satisfies PostPostedMessage));
+    }
+  }
+  await Promise.allSettled(notifications);
 }
 
 async function sendPhoto(settings: ExtensionSettings, payload: TelegramPhotoPayload) {
@@ -198,7 +237,7 @@ async function sendPhoto(settings: ExtensionSettings, payload: TelegramPhotoPayl
   const body = {
     chat_id: settings.channelId,
     photo: payload.mediaUrl,
-    caption: buildCaption(payload.postUrl, settings.autoPrefix),
+    caption: buildCaption(payload.postUrl, settings),
     parse_mode: "HTML"
   };
 
@@ -224,7 +263,7 @@ async function sendPhotoAlbum(settings: ExtensionSettings, payload: TelegramPhot
     const media = chunk.map((url, mediaIndex) => ({
       type: "photo",
       media: url,
-      ...(index === 0 && mediaIndex === 0 ? { caption: buildCaption(payload.postUrl, settings.autoPrefix), parse_mode: "HTML" } : {})
+      ...(index === 0 && mediaIndex === 0 ? { caption: buildCaption(payload.postUrl, settings), parse_mode: "HTML" } : {})
     }));
 
     const response = await fetch(`https://api.telegram.org/bot${settings.botToken}/sendMediaGroup`, {
@@ -287,7 +326,8 @@ async function sendVideo(
 
   const formData = new FormData();
   formData.append("chat_id", settings.channelId);
-  formData.append("caption", buildCaption(payload.postUrl, settings.autoPrefix));
+  formData.append("caption", buildCaption(payload.postUrl, settings));
+  formData.append("parse_mode", "HTML");
   formData.append("video", video.blob, video.filename || "video.mp4");
 
   const url = `https://api.telegram.org/bot${settings.botToken}/sendVideo`;
@@ -436,9 +476,12 @@ function escapeCaption(text: string) {
     .replace(/'/g, "&#039;");
 }
 
-function buildCaption(postUrl: string, autoPrefix: boolean) {
-  const prefix = autoPrefix ? "New post\n" : "";
-  return `${prefix}${escapeCaption(postUrl)}`;
+function buildCaption(postUrl: string, settings: ExtensionSettings) {
+  const prefix = settings.captionPrefix.trim();
+  const caption = prefix ? escapeCaption(prefix) : "";
+  if (!settings.includePostLink) return caption;
+  const link = escapeCaption(postUrl);
+  return caption ? `${caption}\n${link}` : link;
 }
 
 function chunkArray<T>(items: T[], size: number) {

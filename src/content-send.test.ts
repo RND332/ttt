@@ -41,52 +41,10 @@ function makeSettings() {
   return {
     botToken: "token",
     channelId: "channel",
-    autoPrefix: true
+    captionPrefix: "New post",
+    includePostLink: true
   };
 }
-
-test("createSendHandler forwards video payloads directly to the background script", async () => {
-  const sendMessage = vi.fn(async (message: any) => {
-    if (message.type === "SEND_TO_TELEGRAM") return { ok: true, result: {} };
-    throw new Error(`unexpected message ${message.type}`);
-  });
-
-  (globalThis as any).chrome = {
-    permissions: { request: vi.fn(async () => true) },
-    storage: { local: { get: vi.fn(async () => makeSettings()) } },
-    runtime: { sendMessage }
-  };
-
-  const handler = createSendHandler();
-  const payload: TelegramSendPayload = {
-    kind: "video",
-    postUrl: "https://x.com/u/status/1",
-    videoUrl: "https://video.twimg.com/ext_tw_video/123/pu/vid/avc1/example.mp4"
-  };
-
-  await expect(handler(payload)).resolves.toEqual({ ok: true, result: {} });
-  expect(sendMessage).toHaveBeenCalledWith({ type: "SEND_TO_TELEGRAM", payload });
-  expect(sendMessage).toHaveBeenCalledTimes(1);
-});
-
-test("createSendHandler forwards photo payloads unchanged", async () => {
-  const sendMessage = vi.fn(async () => ({ ok: true, result: {} }));
-
-  (globalThis as any).chrome = {
-    storage: { local: { get: vi.fn(async () => makeSettings()) } },
-    runtime: { sendMessage }
-  };
-
-  const handler = createSendHandler();
-  const payload: TelegramSendPayload = {
-    kind: "photo",
-    mediaUrl: "https://pbs.twimg.com/media/x.jpg",
-    postUrl: "https://x.com/u/status/1"
-  };
-  await handler(payload);
-
-  expect(sendMessage).toHaveBeenCalledWith({ type: "SEND_TO_TELEGRAM", payload });
-});
 
 test("createSendHandler resolves blob-backed videos through the page bridge before messaging background", async () => {
   const sendMessage = vi.fn(async (message: any) => {

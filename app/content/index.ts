@@ -1,13 +1,14 @@
 import { createSendHandler } from "../../src/content-send";
+import type { SendHandler } from "../../src/content-send";
 import { getErrorMessage } from "../../src/error-message";
 import { extractPostData } from "../../src/post-extraction";
+import { sendExtensionMessage } from "../../src/runtime-messaging";
+import { parseTwitterPostRef } from "../../src/twitter-video-metadata-resolver";
+import type { BackgroundMessage, GetPostedPostsResult, MessageResponse, TelegramSendPayload } from "../../src/shared";
 
 const BUTTON_CLASS = "ttt-send-button";
-const PROCESSED_ATTR = "data-ttt-processed";
 const POST_SELECTOR = "article";
-let sendHandler: ReturnType<typeof createSendHandler> | null = null;
-
-bootstrap();
+let sendHandler: SendHandler | null = null;
 
 function bootstrap() {
   if (document.readyState === "loading") {
@@ -20,6 +21,12 @@ function bootstrap() {
 
 function initialize() {
   ensureStyles();
+  chrome.runtime.onMessage.addListener((message: unknown) => {
+    if (message && typeof message === "object" && "type" in message && message.type === "POST_POSTED"
+      && "postId" in message && typeof message.postId === "string") {
+      markPostPosted(message.postId);
+    }
+  });
   startObserver();
   scanPosts();
 }
@@ -46,7 +53,7 @@ function ensureStyles() {
       transition: background-color 0.15s ease, color 0.15s ease;
       overflow: hidden;
     }
-    .${BUTTON_CLASS}:hover {
+    .${BUTTON_CLASS}:hover:not(:disabled) {
       background-color: rgba(29, 155, 240, 0.1);
       color: rgb(29, 155, 240);
     }
@@ -55,107 +62,152 @@ function ensureStyles() {
       cursor: progress;
       transform: none;
     }
+    .${BUTTON_CLASS}[data-state="sent"],
+    .${BUTTON_CLASS}[data-state="unavailable"] {
+      cursor: default;
+    }
+    .${BUTTON_CLASS}:focus-visible {
+      outline: 2px solid rgb(29, 155, 240);
+      outline-offset: 2px;
+    }
   `;
   document.head.appendChild(style);
 }
 
 function startObserver() {
   if (typeof MutationObserver === "undefined") return;
-  const observer = new MutationObserver(() => scanPosts());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-}
-
-function scanPosts() {
-  document.querySelectorAll(POST_SELECTOR).forEach((article) => {
-    if (article.hasAttribute(PROCESSED_ATTR)) return;
-    const data = extractPostData(article);
-    if (!data) return;
-    article.setAttribute(PROCESSED_ATTR, "true");
-    const footer = article.querySelector("[role='group']") || article;
-    footer.appendChild(buildButton(article, data));
+  const observer = new MutationObserver((records) => {
+    const articles = new Set<Element>();
+    for (const record of records) {
+      if (!(record.target instanceof Element) || record.target.closest(`.${BUTTON_CLASS}`)) continue;
+      const added = record.addedNodes[0];
+      if (!record.removedNodes.length && record.addedNodes.length === 1
+        && added instanceof HTMLButtonElement && added.classList.contains(BUTTON_CLASS)) continue;
+      const parent = record.target.closest(POST_SELECTOR);
+      if (parent) articles.add(parent);
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches(POST_SELECTOR)) articles.add(node);
+        for (const article of node.querySelectorAll(POST_SELECTOR)) articles.add(article);
+      }
+    }
+    if (articles.size) scanPosts(articles);
+  });
+  observer.observe(document.documentElement, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ["href", "src"]
   });
 }
 
-function buildButton(article: Element, data: ReturnType<typeof extractPostData>) {
-  if (!data) throw new Error("Cannot build button without post data.");
+function scanPosts(articles: Iterable<Element> = document.querySelectorAll(POST_SELECTOR)) {
+  const buttons: HTMLButtonElement[] = [];
+  for (const article of articles) {
+    if (!article.isConnected) continue;
+    let currentButton: HTMLButtonElement | undefined;
+    for (const button of article.querySelectorAll<HTMLButtonElement>(`.${BUTTON_CLASS}`)) {
+      if (button.closest(POST_SELECTOR) === article) {
+        currentButton = button;
+        break;
+      }
+    }
+    const data = extractPostData(article);
+    const postId = data && parseTwitterPostRef(data.postUrl)?.tweetId;
+    if (postId && currentButton?.dataset.postId === postId) continue;
+    currentButton?.remove();
+    if (!data || !postId) continue;
+    const footer = article.querySelector("[role='group']") || article;
+    const button = buildButton(article, data, postId);
+    footer.appendChild(button);
+    buttons.push(button);
+  }
+  if (!buttons.length) return;
 
+  void sendExtensionMessage<MessageResponse<GetPostedPostsResult>>({
+    type: "GET_POSTED_POSTS",
+    postIds: buttons.map((button) => button.dataset.postId!)
+  } satisfies BackgroundMessage).then((response) => {
+    if (!response.ok) throw new Error(response.error);
+    const posted = new Set(response.result.postIds);
+    for (const button of buttons) {
+      if (button.dataset.state === "checking") {
+        setButtonState(button, posted.has(button.dataset.postId!) ? "sent" : "ready");
+      }
+    }
+  }).catch((error: unknown) => {
+    console.error("[TTT] could not read posted history", error);
+    for (const button of buttons) {
+      if (button.dataset.state === "checking") setButtonState(button, "unavailable");
+    }
+  });
+}
+
+function buildButton(article: Element, data: TelegramSendPayload, postId: string) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = BUTTON_CLASS;
+  button.dataset.postId = postId;
+  setButtonState(button, "checking");
   const send = sendHandler ?? (sendHandler = createSendHandler());
-  button.title = data.kind === "video"
-    ? "Download the video and send it to Telegram"
-    : data.kind === "photo-album"
-      ? "Send the images and post link to Telegram"
-      : "Send the image and post link to Telegram";
-
-  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  icon.setAttribute("viewBox", "0 0 24 24");
-  icon.setAttribute("width", "18.75");
-  icon.setAttribute("height", "18.75");
-  icon.setAttribute("aria-hidden", "true");
-  icon.setAttribute("focusable", "false");
-  icon.style.display = "block";
-
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute(
-    "d",
-    data.kind === "video"
-      ? "M3.5 11.3 19.9 4.6c.7-.3 1.4.4 1.1 1.1l-5.7 16.4c-.2.7-1.2.9-1.7.4l-4.1-4.1-3.7 3.3c-.4.3-1 .2-1.2-.3l-1.4-4.6c-.1-.5.1-1 .5-1.2l5.6-2.7c.3-.2.4-.6.2-.8-.2-.3-.6-.4-.9-.3l-5.4 1.7c-.8.2-1.4-.6-1-1.3Z"
-      : "M3.4 11.8 19.6 4.5c.7-.3 1.4.4 1.1 1.1l-5.4 15.9c-.2.7-1.2.9-1.7.4l-3.9-3.9-4.1 2.9c-.5.4-1.2.1-1.3-.5l-.9-3.8c-.1-.5.1-1 .6-1.2l4.8-2.2c.4-.2.5-.7.2-1-.2-.3-.6-.4-.9-.3l-4.4 1.1c-.8.2-1.4-.7-.9-1.3Z"
-  );
-  path.setAttribute("fill", "currentColor");
-  icon.appendChild(path);
-
-  const status = document.createElement("span");
-  status.textContent = data.kind === "video" ? "Download video" : data.kind === "photo-album" ? "Send images" : "Send image";
-  status.style.cssText = `
-    position:absolute;
-    width:1px;
-    height:1px;
-    padding:0;
-    margin:-1px;
-    overflow:hidden;
-    clip:rect(0, 0, 0, 0);
-    white-space:nowrap;
-    border:0;
-  `;
-
-  button.append(icon, status);
 
   button.addEventListener("click", async () => {
-    button.disabled = true;
-    const originalStatus = status.textContent;
-    status.textContent = data.kind === "video" ? "Downloading…" : "Sending…";
+    if (button.dataset.state !== "ready") return;
+    setButtonState(button, "sending");
     try {
-      const latestData = extractPostData(article);
-      const payload = latestData || data;
+      const payload = extractPostData(article) || data;
+      button.dataset.postId = parseTwitterPostRef(payload.postUrl)?.tweetId || postId;
       const response = await send(payload);
-      if (!response?.ok) throw new Error("error" in response ? response.error || "Unknown error" : "Unknown error");
-      status.textContent = "Sent";
-      setTimeout(() => {
-        status.textContent = originalStatus;
-        button.disabled = false;
-      }, 1300);
+      if (!response.ok) throw new Error(response.error || "Unknown error");
+      markPostPosted(button.dataset.postId);
     } catch (error: unknown) {
+      if (button.getAttribute("data-state") === "sent") return;
       console.error("[TTT] send failed", error);
-      status.textContent = "Failed";
+      setButtonState(button, "failed");
       setTimeout(() => {
-        status.textContent = originalStatus;
-        button.disabled = false;
+        if (button.dataset.state === "failed") setButtonState(button, "ready");
       }, 1800);
       alert(`TTT send failed: ${getErrorMessage(error)}`);
     }
   });
 
-  if (isDebugEnabled()) {
-    console.debug("[TTT] classified post", data);
-  }
-
+  if (isDebugEnabled()) console.debug("[TTT] classified post", data);
   return button;
+}
+
+function markPostPosted(postId: string) {
+  for (const button of document.querySelectorAll<HTMLButtonElement>(`.${BUTTON_CLASS}`)) {
+    if (button.dataset.postId === postId) setButtonState(button, "sent");
+  }
+}
+
+type ButtonState = "checking" | "ready" | "sending" | "sent" | "failed" | "unavailable";
+
+const BUTTON_LABELS: Record<ButtonState, string> = {
+  checking: "Checking posted history…",
+  ready: "Send to Telegram",
+  sending: "Sending to Telegram…",
+  sent: "Already posted to Telegram",
+  failed: "Send failed",
+  unavailable: "Cannot check posted history. Reload the page."
+};
+
+function setButtonState(button: HTMLButtonElement, state: ButtonState) {
+  const sent = state === "sent";
+  if (!button.firstElementChild || sent !== (button.dataset.state === "sent")) {
+    // Lucide send and circle-check, ISC. License included in public/icons/LICENSE-lucide.txt.
+    button.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+      stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true" focusable="false">${sent
+        ? '<circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/>'
+        : '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>'}</svg>`;
+  }
+  button.dataset.state = state;
+  button.disabled = state !== "ready";
+  button.title = BUTTON_LABELS[state];
+  button.setAttribute("aria-label", BUTTON_LABELS[state]);
 }
 
 function isDebugEnabled() {
   return typeof window !== "undefined" && window.localStorage.getItem("ttt-debug") === "1";
 }
+
+bootstrap();
 

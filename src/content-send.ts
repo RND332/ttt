@@ -19,7 +19,9 @@ type CreateSendHandlerOptions = {
   blobBridgeClient?: BlobBridgeClient;
 };
 
-export function createSendHandler(options: CreateSendHandlerOptions = {}) {
+export type SendHandler = (payload: TelegramSendPayload) => Promise<MessageResponse<unknown>>;
+
+export function createSendHandler(options: CreateSendHandlerOptions = {}): SendHandler {
   return async (payload: TelegramSendPayload) => {
     const resolvedPayload = payload.kind === "video"
       ? await resolveVideoPayload(payload, options.blobBridgeClient)

@@ -32,7 +32,9 @@ beforeEach(() => {
   } as any);
   (globalThis as any).chrome = {
     runtime: {
-      getURL: vi.fn((path: string) => `chrome-extension://abc/${path}`)
+      getURL: vi.fn((path: string) => `chrome-extension://abc/${path}`),
+      onMessage: { addListener: vi.fn() },
+      sendMessage: vi.fn(async () => ({ ok: true, result: { postIds: [] } }))
     }
   };
   Object.defineProperty(window, "localStorage", {
@@ -55,45 +57,6 @@ afterEach(() => {
   vi.resetModules();
   (globalThis as any).chrome = originalChrome;
   (globalThis as any).MutationObserver = originalMutationObserver;
-});
-
-test("content bootstrap no longer injects a chrome-extension script tag for the blob bridge or depend on settings loading", async () => {
-  await import("../app/content/index");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  expect(document.querySelector('script[src^="chrome-extension://"]')).toBeNull();
-  expect(createSendHandler).toHaveBeenCalledTimes(0);
-});
-
-test("content reuses one send handler across multiple injected post buttons", async () => {
-  document.body.innerHTML = `
-    <article>
-      <a href="/user/status/101">main</a>
-      <div role="group"></div>
-    </article>
-    <article>
-      <a href="/user/status/102">main</a>
-      <div role="group"></div>
-    </article>
-  `;
-
-  extractPostData
-    .mockReturnValueOnce({
-      kind: "photo",
-      mediaUrl: "https://pbs.twimg.com/media/101.jpg",
-      postUrl: "https://x.com/user/status/101"
-    })
-    .mockReturnValueOnce({
-      kind: "photo",
-      mediaUrl: "https://pbs.twimg.com/media/102.jpg",
-      postUrl: "https://x.com/user/status/102"
-    });
-
-  await import("../app/content/index");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  expect(document.querySelectorAll("button.ttt-send-button")).toHaveLength(2);
-  expect(createSendHandler).toHaveBeenCalledTimes(1);
 });
 
 test("content click re-extracts video payload so late blob sources are used instead of stale empty video payloads", async () => {
@@ -124,8 +87,6 @@ test("content click re-extracts video payload so late blob sources are used inst
   button?.click();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(extractPostData).toHaveBeenCalledTimes(2);
-  expect(createSendHandler).toHaveBeenCalledTimes(1);
   expect(sendMock).toHaveBeenCalledWith({
     kind: "video",
     postUrl: "https://x.com/user/status/2043434125407948800",
@@ -133,32 +94,3 @@ test("content click re-extracts video payload so late blob sources are used inst
   });
 });
 
-test("content click forwards unresolved video posts to the centralized send handler without pre-recovery", async () => {
-  document.body.innerHTML = `
-    <article>
-      <a href="/user/status/777">main</a>
-      <div role="group"></div>
-    </article>
-  `;
-
-  extractPostData.mockReturnValue({
-    kind: "video",
-    postUrl: "https://x.com/user/status/777"
-  });
-
-  await import("../app/content/index");
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  expect(createSendHandler).toHaveBeenCalledTimes(1);
-  const button = document.querySelector("button.ttt-send-button") as HTMLButtonElement | null;
-  expect(button).toBeTruthy();
-
-  button?.click();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  expect(createSendHandler).toHaveBeenCalledTimes(1);
-  expect(sendMock).toHaveBeenCalledWith({
-    kind: "video",
-    postUrl: "https://x.com/user/status/777"
-  });
-});

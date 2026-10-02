@@ -4,6 +4,13 @@ import { UNSUPPORTED_SEGMENTED_HLS_ERROR } from "./hls-video-download";
 import type { TelegramSendPayload } from "./shared";
 import { DEFAULT_SETTINGS } from "./shared";
 
+// Download/send cases stay independent of history latency; native database integration has its own suite.
+vi.mock("./posted-posts", () => ({
+  isPostPosted: async () => false,
+  recordPostedPost: async () => undefined,
+  getPostedPostIds: async () => []
+}));
+
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -59,6 +66,7 @@ beforeEach(() => {
     action: {
       onClicked: { addListener: vi.fn() }
     },
+    tabs: { query: vi.fn(async () => []), sendMessage: vi.fn() },
     storage: {
       local: {
         get: vi.fn(async () => ({ ...DEFAULT_SETTINGS, botToken: "token", channelId: "channel" })),

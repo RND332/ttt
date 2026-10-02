@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ExtensionSettings } from "./shared";
 import { DEFAULT_SETTINGS } from "./shared";
+import { loadExtensionSettings } from "./settings";
 
 function normalizeSettings(settings: ExtensionSettings): ExtensionSettings {
   return {
     botToken: settings.botToken.trim(),
     channelId: settings.channelId.trim(),
-    autoPrefix: settings.autoPrefix
+    captionPrefix: settings.captionPrefix.trim(),
+    includePostLink: settings.includePostLink
   };
 }
 
@@ -36,7 +38,7 @@ function OptionsPage() {
 
   useEffect(() => {
     void (async () => {
-      const loaded = (await storage.get(DEFAULT_SETTINGS)) as ExtensionSettings;
+      const loaded = await loadExtensionSettings();
       setSettings(loaded);
       setHydrated(true);
     })();
@@ -71,77 +73,51 @@ function OptionsPage() {
 
   return (
     <div className="shell">
-      <div className="card">
-        <div className="topbar">
-          <div>
-            <div className="eyebrow">Extension settings</div>
-            <h1>TTT</h1>
-            <p>Connect Telegram and tune posting behavior.</p>
-          </div>
-          <div className="row" style={{ marginTop: 0 }}>
-            <button type="button" onClick={() => void saveSettings()}>
-              Save
-            </button>
-          </div>
+      <header className="masthead">
+        <span className="wordmark">ttt.</span>
+        <span>X → Telegram</span>
+      </header>
+      <main>
+        <div className="intro">
+          <h1>Settings</h1>
+          <p>Send media from X to your Telegram channel.</p>
         </div>
-        <div className="divider" />
-
-        <div className="layout">
-          <aside className="sidebar">
-            <h2>Sections</h2>
-            <nav>
-              <a href="#telegram">Telegram</a>
-              <a href="#behavior">Behavior</a>
-            </nav>
-          </aside>
-
-          <main className="main">
-            <div className="grid">
-              <div className="section" id="telegram">
-                <h2>Telegram</h2>
-                <label htmlFor="botToken">Bot Token</label>
-                <input
-                  id="botToken"
-                  type="password"
-                  placeholder="123456:ABC-DEF..."
-                  value={settings.botToken}
-                  onChange={(event) => updateSetting("botToken", event.target.value)}
-                />
-                <label htmlFor="channelId">Channel ID or @username</label>
-                <input
-                  id="channelId"
-                  type="text"
-                  placeholder="@mychannel or -1001234567890"
-                  value={settings.channelId}
-                  onChange={(event) => updateSetting("channelId", event.target.value)}
-                />
-                <div className="hint">This is where media will be posted.</div>
-              </div>
-              <div className="section" id="behavior">
-                <h2>Behavior</h2>
-                <label>
-                  <input
-                    id="autoPrefix"
-                    type="checkbox"
-                    checked={settings.autoPrefix}
-                    onChange={(event) => updateSetting("autoPrefix", event.target.checked)}
-                  />
-                  Prefix Telegram captions with “New post”
-                </label>
-                <div className="hint">Videos are downloaded directly in the browser from X/Twitter when a usable direct file URL is exposed.</div>
-                <div className="hint">If X falls back to an HLS playlist, TTT retries through any direct MP4 variant exposed by that playlist before failing.</div>
-                <div className="hint">Set <code>localStorage.ttt-debug = 1</code> in the page console to log classification details.</div>
-              </div>
+        <form onSubmit={(event) => { event.preventDefault(); void saveSettings(); }}>
+          <fieldset disabled={!hydrated}>
+            <div className="field">
+              <label htmlFor="botToken">Bot token</label>
+              <input id="botToken" type="password" autoComplete="off" spellCheck={false}
+                value={settings.botToken}
+                onChange={(event) => updateSetting("botToken", event.target.value)} />
+              <p className="hint">Get a token from <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">@BotFather ↗</a></p>
             </div>
-            <div className="row">
-              <button type="button" onClick={() => void saveSettings()}>
-                Save
-              </button>
-              <span id="status">{status}</span>
+            <div className="field">
+              <label htmlFor="channelId">Channel ID or username</label>
+              <input id="channelId" type="text" placeholder="@mychannel or -1001234567890" spellCheck={false}
+                value={settings.channelId}
+                onChange={(event) => updateSetting("channelId", event.target.value)} />
+              <p className="hint">Add your bot as a channel admin before posting.</p>
             </div>
-          </main>
-        </div>
-      </div>
+            <div className="field">
+              <label htmlFor="captionPrefix">Caption prefix</label>
+              <input id="captionPrefix" type="text"
+                value={settings.captionPrefix}
+                onChange={(event) => updateSetting("captionPrefix", event.target.value)} />
+              <p className="hint">Leave empty for no prefix.</p>
+            </div>
+            <label className="switch-row" htmlFor="includePostLink">
+              <span>Include link to original post</span>
+              <input id="includePostLink" type="checkbox" role="switch"
+                checked={settings.includePostLink}
+                onChange={(event) => updateSetting("includePostLink", event.target.checked)} />
+            </label>
+            <div className="actions">
+              <button type="submit">Save changes</button>
+              <span id="status" role="status">{status || "Changes save automatically"}</span>
+            </div>
+          </fieldset>
+        </form>
+      </main>
     </div>
   );
 }

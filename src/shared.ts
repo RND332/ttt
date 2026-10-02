@@ -35,13 +35,15 @@ export type TelegramSendPayload = TelegramPhotoPayload | TelegramPhotoAlbumPaylo
 export interface ExtensionSettings {
   botToken: string;
   channelId: string;
-  autoPrefix: boolean;
+  captionPrefix: string;
+  includePostLink: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   botToken: "",
   channelId: "",
-  autoPrefix: true
+  captionPrefix: "New post",
+  includePostLink: true
 };
 
 export interface SendToTelegramMessage {
@@ -76,13 +78,28 @@ export interface GetRecoveredVideoCandidatesResult {
   candidates: RecoveredVideoCandidate[];
 }
 
+export interface GetPostedPostsMessage {
+  type: "GET_POSTED_POSTS";
+  postIds: string[];
+}
+
+export interface GetPostedPostsResult {
+  postIds: string[];
+}
+
+export interface PostPostedMessage {
+  type: "POST_POSTED";
+  postId: string;
+}
+
 export type BackgroundMessage =
   | SendToTelegramMessage
   | EnsurePageBlobBridgeMessage
   | EnsurePageStreamVideoDiscoveryMessage
   | EnsurePageTwitterVideoResolverMessage
   | ReportRecoveredVideoCandidatesMessage
-  | GetRecoveredVideoCandidatesMessage;
+  | GetRecoveredVideoCandidatesMessage
+  | GetPostedPostsMessage;
 
 export interface MessageOkResponse<T = unknown> {
   ok: true;
