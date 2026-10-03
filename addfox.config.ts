@@ -19,7 +19,7 @@ export default defineConfig({
   },
   manifest: {
     name: "TTT",
-    version: "1.0.0",
+    version: "1.1.0",
     description: "Sends X post media to Telegram with one click.",
     permissions: ["storage", "scripting"],
     host_permissions: [

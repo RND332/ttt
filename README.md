@@ -49,15 +49,16 @@ Vitest conventions in this repo:
 - Use table-driven tests (`test.each`) when covering variants
 - Put fixture HTML under `mocks/` and reuse it through `src/test/fixtures.ts`
 
-### Production build
+### Production build and distribution ZIP
 ```bash
 bun run build
 ```
 
-### Zip for distribution
-```bash
-bun run zip
-```
+The build creates:
+- `.addfox/dist/extension-chromium/` — unpacked extension
+- `.addfox/dist/dist-chromium.zip` — distribution ZIP
+
+Pushing a `v*` tag runs the release workflow: frozen install, tests, typecheck, production build, and ZIP upload to the GitHub release.
 
 ## Setup
 1. Create a Telegram bot with @BotFather.

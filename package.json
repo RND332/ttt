@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "addfox dev -b edge --cache",
     "build": "addfox build --no-open",
-    "zip": "addfox zip",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt .",
