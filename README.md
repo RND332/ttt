@@ -35,6 +35,15 @@ bun run dev
 bun run typecheck
 ```
 
+### Lint
+```bash
+bun run lint
+```
+
+The `Checks` workflow runs frozen dependency installation, lint, tests, typecheck, and the
+production build on every pull request. It uses the release workflow's Node.js 22 and Bun
+setup, has read-only repository permissions, and does not publish or deploy.
+
 ### Tests
 ```bash
 bun run test
