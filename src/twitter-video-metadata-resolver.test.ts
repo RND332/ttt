@@ -36,6 +36,26 @@ describe("parseTwitterPostRef", () => {
       videoIndex: 1,
     });
   });
+
+  test.each([
+    "https://x.com/ForfunNanashi/status/2106732236955676812/photo/1",
+    "https://twitter.com/ForfunNanashi/status/2106732236955676812/photo/4/?ref=feed#media",
+  ])("photo routes identify the whole post, not a video index: %s", (url) => {
+    expect(parseTwitterPostRef(url)).toEqual({
+      canonicalUrl: "https://x.com/ForfunNanashi/status/2106732236955676812",
+      tweetId: "2106732236955676812",
+      videoIndex: null,
+    });
+  });
+
+  test.each([
+    "https://x.com/user/status/123/analytics",
+    "https://x.com/user/status/123/photo/not-an-index",
+    "https://x.com/user/status/123/photo/1/extra",
+    "https://example.com/user/status/123/photo/1",
+  ])("unrelated routes remain unsupported: %s", (url) => {
+    expect(parseTwitterPostRef(url)).toBeNull();
+  });
 });
 
 describe("variant helpers", () => {

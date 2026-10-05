@@ -77,6 +77,14 @@ test("the same post cannot be resent through a different X or Twitter URL", asyn
   expect(requests).toHaveLength(1);
 });
 
+test("photo routes send successfully and share posted history with the plain post URL", async () => {
+  expect((await message(photo("https://x.com/user/status/901/photo/1"))).ok).toBe(true);
+  expect(await history("901")).toEqual({ ok: true, result: { postIds: ["901"] } });
+  expect((await message(photo())).ok).toBe(true);
+  expect((await message(photo("https://twitter.com/user/status/901/photo/2"))).ok).toBe(true);
+  expect(requests).toHaveLength(1);
+});
+
 test("concurrent send requests for the same post share one upload", async () => {
   await Promise.all([message(photo()), message(photo())]);
   expect(requests).toHaveLength(1);

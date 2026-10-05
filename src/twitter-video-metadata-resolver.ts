@@ -124,7 +124,7 @@ export function parseTwitterPostRef(postUrl: string): TwitterPostRef | null {
       return null;
     }
 
-    const match = parsed.pathname.match(/^\/([^/]+)\/status\/(\d+)(?:\/video\/(\d+))?\/?$/i);
+    const match = parsed.pathname.match(/^\/([^/]+)\/status\/(\d+)(?:\/(?:video\/(\d+)|photo\/\d+))?\/?$/i);
     if (!match) {
       return null;
     }

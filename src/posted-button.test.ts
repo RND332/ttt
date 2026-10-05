@@ -65,6 +65,27 @@ function button(index = 0) {
   return element;
 }
 
+test("a post page with its photo link before its timestamp gets a usable Send action", async () => {
+  document.body.innerHTML = `
+    <main>
+      <article>
+        <a href="/ForfunNanashi/status/2106732236955676812/photo/1">
+          <img src="https://pbs.twimg.com/media/HTydrkka0AAV4pn?format=webp&name=large" />
+        </a>
+        <a href="/ForfunNanashi/status/2106732236955676812">Post timestamp</a>
+        <div role="group"></div>
+      </article>
+    </main>
+  `;
+  // Startup must run against this test's fresh post-page DOM and Chrome runtime.
+  await import("../app/content/index");
+  await vi.waitFor(() => expect(document.querySelector<HTMLButtonElement>(".ttt-send-button")?.disabled).toBe(false));
+  expect(button().dataset.postId).toBe("2106732236955676812");
+  button().click();
+  await vi.waitFor(() => expect(button().dataset.state).toBe("sent"));
+  expect(button().disabled).toBe(true);
+});
+
 test("previously posted items are disabled while unposted items can still be sent", async () => {
   postedIds = [FIRST_POST_ID];
   await startContent();

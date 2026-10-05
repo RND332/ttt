@@ -4,6 +4,7 @@ A Chrome/Chromium extension that sends media from X posts to a Telegram channel 
 
 ## What it does
 - Injects a media-aware button only on posts that contain media
+- Supports media posts in feeds, individual post pages, and photo links (`/status/<id>/photo/<index>`)
 - Detects video posts by real video containers, not preview frames
 - Sends images using `sendPhoto` and photo albums using `sendMediaGroup`
 - Sends videos by either downloading a direct X/Twitter video file URL or materializing an in-page blob-backed video in the browser, then uploading that file to Telegram with `sendVideo`
@@ -74,6 +75,7 @@ Pushing a `v*` tag runs the release workflow: frozen install, tests, typecheck, 
 ## Posted history
 - Successful sends are stored by X post ID in the local `ttt-post-history` IndexedDB database using [idb-keyval](https://github.com/jakearchibald/idb-keyval).
 - History is shared across tabs and channel changes in this browser profile. Sent buttons remain inactive after page reloads and extension service-worker restarts.
+- Photo links and plain status links share the same post ID, so opening another image from an already sent post does not make it sendable again.
 - Failed sends are not recorded and can be retried. Albums are recorded only after every group succeeds; retrying a partially sent album can resend its successful groups.
 - Posts sent before this feature or from another browser are not imported. Clearing extension data or uninstalling the extension removes the local history.
 - Telegram delivery and local persistence are not one atomic transaction: a shutdown after Telegram accepts a post but before its history is saved can leave it unrecorded.
