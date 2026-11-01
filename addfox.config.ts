@@ -57,6 +57,13 @@ export default defineConfig({
       browser_specific_settings: {
         gecko: {
           id: "ttt@rnd332.github.io",
+          strict_min_version: "140.0",
+          data_collection_permissions: {
+            required: ["authenticationInfo", "websiteContent"],
+          },
+        },
+        gecko_android: {
+          strict_min_version: "142.0",
         },
       },
     },
