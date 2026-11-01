@@ -52,12 +52,15 @@ Vitest conventions in this repo:
 
 ### Production build and distribution ZIP
 ```bash
-bun run build
+bun run build                     # Chromium (default target)
+bun run build -- -b firefox       # Firefox
 ```
 
-The build creates:
-- `.addfox/dist/extension-chromium/` — unpacked extension
-- `.addfox/dist/dist-chromium.zip` — distribution ZIP
+Each build creates:
+- `.addfox/dist/extension-chromium/` and `.addfox/dist/dist-chromium.zip`
+- `.addfox/dist/extension-firefox/` and `.addfox/dist/dist-firefox.zip` (when built with `-b firefox`)
+
+The Firefox manifest is defined in `addfox.config.ts` next to the Chromium one and adds `browser_specific_settings.gecko.id`, which Firefox MV3 requires for signing. Load `.addfox/dist/extension-firefox/` through `about:debugging#/runtime/this-firefox` or `bunx web-ext run --source-dir .addfox/dist/extension-firefox`.
 
 Pushing a `v*` tag runs the release workflow: frozen install, tests, typecheck, production build, and ZIP upload to the GitHub release.
 
