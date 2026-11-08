@@ -494,6 +494,62 @@ test("createSendHandler checks only already-stored recovered candidates when a b
   });
 });
 
+test("createSendHandler recovers candidates when reading a MediaSource-backed blob times out", async () => {
+  const sendMessage = vi.fn(async (message: { type: string }) => {
+    if (message.type === "ENSURE_PAGE_BLOB_BRIDGE") return { ok: true, result: undefined };
+    if (message.type === "GET_RECOVERED_VIDEO_CANDIDATES") {
+      return {
+        ok: true,
+        result: {
+          candidates: [
+            {
+              kind: "direct-mp4",
+              url: "https://video.twimg.com/ext_tw_video/2044/pu/vid/avc1/recovered-after-blob-timeout.mp4",
+              mimeType: "video/mp4",
+              source: "performance"
+            }
+          ]
+        }
+      };
+    }
+    if (message.type === "SEND_TO_TELEGRAM") return { ok: true, result: {} };
+    throw new Error(`unexpected message ${message.type}`);
+  });
+  const resolveBlobUrl = vi.fn(async () => {
+    throw new Error("Timed out while reading X video blob.");
+  });
+
+  (globalThis as typeof globalThis & { chrome?: unknown }).chrome = {
+    storage: { local: { get: vi.fn(async () => makeSettings()) } },
+    runtime: { sendMessage }
+  };
+
+  const handler = createSendHandler({
+    blobBridgeClient: { resolveBlobUrl }
+  });
+  const payload: TelegramSendPayload = {
+    kind: "video",
+    postUrl: "https://x.com/u/status/2044",
+    blobUrl: "blob:https://x.com/media-source"
+  };
+
+  await expect(handler(payload)).resolves.toEqual({ ok: true, result: {} });
+
+  expect(sendMessage).toHaveBeenNthCalledWith(2, {
+    type: "GET_RECOVERED_VIDEO_CANDIDATES",
+    postUrl: "https://x.com/u/status/2044"
+  });
+  expect(sendMessage).toHaveBeenNthCalledWith(3, {
+    type: "SEND_TO_TELEGRAM",
+    payload: {
+      kind: "video",
+      postUrl: "https://x.com/u/status/2044",
+      videoUrl: "https://video.twimg.com/ext_tw_video/2044/pu/vid/avc1/recovered-after-blob-timeout.mp4",
+      blobUrl: "blob:https://x.com/media-source"
+    }
+  });
+});
+
 test("createSendHandler forwards unresolved videos to background so explicit ambiguity errors can reach the user", async () => {
   const sendMessage = vi.fn(async (message: any) => {
     if (message.type === "GET_RECOVERED_VIDEO_CANDIDATES") {

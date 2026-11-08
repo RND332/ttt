@@ -75,7 +75,11 @@ async function resolveVideoPayload(payload: TelegramVideoPayload, blobBridgeClie
 
 function isStreamBackedBlobError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  return /stream-backed|MediaSource|cannot fetch it directly yet/i.test(message);
+  // A MediaSource-backed blob URL can never be read as a file: the body stream
+  // never completes, so the bridge client gives up with a timeout instead of
+  // the "Failed to fetch" it throws for detached/unsupported blobs. Both cases
+  // must fall through to recovered direct video candidates.
+  return /stream-backed|MediaSource|cannot fetch it directly yet|Timed out while reading X video blob/i.test(message);
 }
 
 async function resolveRecoveredVideoPayload(payload: TelegramVideoPayload): Promise<TelegramVideoPayload | null> {
