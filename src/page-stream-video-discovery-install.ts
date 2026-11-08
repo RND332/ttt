@@ -10,13 +10,14 @@ import {
   RECOVERED_VIDEO_SOURCE_PRIORITY
 } from "./page-stream-video-discovery-shared";
 
+type DiscoveryTarget =
+  | { tabId: number }
+  | { tabId: number; frameIds: number[] }
+  | { tabId: number; documentIds: string[] };
+
 type ChromeScriptingApi = {
   executeScript: (injection: {
-    target: {
-      tabId: number;
-      frameIds?: number[];
-      documentIds?: string[];
-    };
+    target: DiscoveryTarget;
     world: "MAIN";
     func: (
       requestType: string,
@@ -41,12 +42,6 @@ type ChromeScriptingApi = {
 
 type ChromeWithScripting = {
   scripting?: ChromeScriptingApi;
-};
-
-type DiscoveryTarget = {
-  tabId: number;
-  frameIds?: number[];
-  documentIds?: string[];
 };
 
 export async function ensurePageStreamVideoDiscoveryInstalled(chromeApi: ChromeWithScripting, target: DiscoveryTarget) {

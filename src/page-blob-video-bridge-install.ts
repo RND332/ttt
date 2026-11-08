@@ -4,13 +4,14 @@ import {
 } from "./page-blob-video-bridge";
 import { getErrorMessage } from "./error-message";
 
+type BridgeTarget =
+  | { tabId: number }
+  | { tabId: number; frameIds: number[] }
+  | { tabId: number; documentIds: string[] };
+
 type ChromeScriptingApi = {
   executeScript: (injection: {
-    target: {
-      tabId: number;
-      frameIds?: number[];
-      documentIds?: string[];
-    };
+    target: BridgeTarget;
     world: "MAIN";
     func: (requestType: string, responseType: string) => void;
     args: [string, string];
@@ -19,12 +20,6 @@ type ChromeScriptingApi = {
 
 type ChromeWithScripting = {
   scripting?: ChromeScriptingApi;
-};
-
-type BridgeTarget = {
-  tabId: number;
-  frameIds?: number[];
-  documentIds?: string[];
 };
 
 function getBlobBridgeErrorMessage(error: unknown) {

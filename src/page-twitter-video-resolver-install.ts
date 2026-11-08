@@ -1,12 +1,13 @@
 import { TTT_PAGE_TWITTER_VIDEO_REQUEST, TTT_PAGE_TWITTER_VIDEO_RESPONSE } from "./page-twitter-video-resolver";
 
+type ResolverTarget =
+  | { tabId: number }
+  | { tabId: number; frameIds: number[] }
+  | { tabId: number; documentIds: string[] };
+
 type ChromeScriptingApi = {
   executeScript: (injection: {
-    target: {
-      tabId: number;
-      frameIds?: number[];
-      documentIds?: string[];
-    };
+    target: ResolverTarget;
     world: "MAIN";
     func: (requestType: string, responseType: string, bearerToken: string, queryId: string, operationName: string) => void;
     args: [string, string, string, string, string];
@@ -15,12 +16,6 @@ type ChromeScriptingApi = {
 
 type ChromeWithScripting = {
   scripting?: ChromeScriptingApi;
-};
-
-type ResolverTarget = {
-  tabId: number;
-  frameIds?: number[];
-  documentIds?: string[];
 };
 
 const TWITTER_BEARER_TOKEN = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";

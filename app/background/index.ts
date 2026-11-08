@@ -35,7 +35,7 @@ import type {
 import { DEFAULT_SETTINGS } from "../../src/shared";
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const existing = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const existing = await chrome.storage.local.get<ExtensionSettings>(DEFAULT_SETTINGS);
   await chrome.storage.local.set({ ...DEFAULT_SETTINGS, ...existing });
 });
 
@@ -88,20 +88,25 @@ function respondWith<T>(
     .catch((error: unknown) => sendResponse({ ok: false, error: getErrorMessage(error) } satisfies MessageResponse<T>));
 }
 
+function getSenderInjectionTarget(sender: chrome.runtime.MessageSender, tabId: number) {
+  if (sender.documentId) {
+    return { tabId, documentIds: [sender.documentId] };
+  }
+
+  if (typeof sender.frameId === "number") {
+    return { tabId, frameIds: [sender.frameId] };
+  }
+
+  return { tabId };
+}
+
 async function installPageBlobBridgeForSender(sender: chrome.runtime.MessageSender) {
   const tabId = sender.tab?.id;
   if (typeof tabId !== "number") {
     throw new Error("Cannot install page blob bridge without a sender tab ID.");
   }
 
-  await ensurePageBlobBridgeInstalled(chrome, {
-    tabId,
-    ...(sender.documentId
-      ? { documentIds: [sender.documentId] }
-      : typeof sender.frameId === "number"
-        ? { frameIds: [sender.frameId] }
-        : {})
-  });
+  await ensurePageBlobBridgeInstalled(chrome, getSenderInjectionTarget(sender, tabId));
 }
 
 async function installPageStreamDiscoveryForSender(sender: chrome.runtime.MessageSender) {
@@ -110,14 +115,7 @@ async function installPageStreamDiscoveryForSender(sender: chrome.runtime.Messag
     throw new Error("Cannot install page stream discovery without a sender tab ID.");
   }
 
-  return await ensurePageStreamVideoDiscoveryInstalled(chrome, {
-    tabId,
-    ...(sender.documentId
-      ? { documentIds: [sender.documentId] }
-      : typeof sender.frameId === "number"
-        ? { frameIds: [sender.frameId] }
-        : {})
-  });
+  return await ensurePageStreamVideoDiscoveryInstalled(chrome, getSenderInjectionTarget(sender, tabId));
 }
 
 async function installPageTwitterVideoResolverForSender(sender: chrome.runtime.MessageSender) {
@@ -126,14 +124,7 @@ async function installPageTwitterVideoResolverForSender(sender: chrome.runtime.M
     throw new Error("Cannot install page Twitter/X video resolver without a sender tab ID.");
   }
 
-  return await ensurePageTwitterVideoResolverInstalled(chrome, {
-    tabId,
-    ...(sender.documentId
-      ? { documentIds: [sender.documentId] }
-      : typeof sender.frameId === "number"
-        ? { frameIds: [sender.frameId] }
-        : {})
-  });
+  return await ensurePageTwitterVideoResolverInstalled(chrome, getSenderInjectionTarget(sender, tabId));
 }
 
 async function storeRecoveredVideoCandidates(

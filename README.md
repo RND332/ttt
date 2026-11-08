@@ -52,10 +52,10 @@ Vitest conventions in this repo:
 bun run build
 ```
 
-### Zip for distribution
-```bash
-bun run zip
-```
+Addfox writes the unpacked extension to `.addfox/dist/extension-chromium/` and packs it to
+`.addfox/dist/dist-chromium.zip` in the same run — no separate zip command needed.
+
+Load the unpacked build from `chrome://extensions` → Developer mode → Load unpacked.
 
 ## Setup
 1. Create a Telegram bot with @BotFather.
